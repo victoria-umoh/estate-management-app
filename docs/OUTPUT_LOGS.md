@@ -303,3 +303,101 @@ verifier, in-process rate limits, local file storage, console mailer).
 Phase 3 — RBAC & audit. The access token currently ships empty `roles` and
 `perms` arrays, so no permission-gated route can pass yet. Phase 3 fills them.
 
+---
+
+## 2026-09-18 16:22 UTC — Phase 3: RBAC & audit complete
+
+### What was built
+
+A 119-permission registry, 11 system roles seeded per estate, the `can()`
+authorisation core with privilege-escalation guards, and an append-only audit
+trail. Access tokens now carry real roles and permissions — they shipped empty
+through Phase 2, so no permission-gated route could pass until now.
+
+### Decisions taken
+
+**No system role holds `resident.viewNin` — not even the chairman.** Reading a
+national identity number is a different act from reading a directory entry, and
+running an estate does not require it. The permission exists and can be added to
+a custom role deliberately; it is simply not granted by default to anyone.
+
+**Security officers cannot see NINs, approve residents, or touch money.** The
+gate is the estate's most physically exposed terminal: often shared between
+shifts, frequently unattended, sometimes visible from outside. Its permission
+set covers verifying, admitting, denying and recording movement, and stops
+there.
+
+**Roles are seeded per estate rather than shared globally.** A chairman can
+inspect exactly what their own officers can do without that inspection reaching
+another estate, and a future per-estate adjustment needs no schema change.
+
+**System roles cannot be edited or deleted.** A chairman who stripped
+`gate.operate` from the officer role would lock their own gates, and the failure
+would present as a hardware fault rather than as a permission change. Custom
+roles remain fully editable.
+
+**Three guards on role creation**, because this is the main way a role system
+fails — whoever can define roles can otherwise define one holding everything and
+assign it to themselves:
+
+1. The wildcard cannot be assigned to a custom role.
+2. A role cannot be created at or above the creator's own rank. Strictly below,
+   so authority cannot be cloned sideways either.
+3. A role cannot grant a permission the creator does not already hold.
+
+**Audit entries are immutable at three levels**: no update or delete path exists
+in the codebase, the schema rejects mutation operations at the ODM layer, and
+the deployment guide will instruct granting the application's database user
+insert and find rights only. An administrator who can quietly erase evidence of
+what they did is not an administrator anyone can audit. There is no `updatedAt`
+field, because a field implying an entry could be updated would undercut the
+whole point.
+
+**Audit diffs redact sensitive fields to `[SET]` / `[CLEARED]`.** The trail must
+record that a NIN changed without becoming a second database of NINs. Encryption
+envelopes are collapsed rather than copied, since storing ciphertext in the
+audit log is useless and gives it one more place to leak from.
+
+### Problems found and fixed
+
+1. **Wildcard check ran too late.** An attempt to mint `*` into a custom role
+   was reported as "Unknown permissions: *" — because `*` is not in the registry
+   — rather than as the escalation attempt it is. Reordered so the wildcard
+   check runs first. The message matters: a security refusal that reads like a
+   typo gets treated like one.
+2. **The chairman could create and update roles but not delete them.** A custom
+   role created in error could never be removed from the estate. Added
+   `role.delete`.
+3. My own test used an estate-manager to exercise the rank guard, but managers
+   legitimately have no `role.create` at all, so the test was asserting the
+   wrong refusal. Replaced with an actor that can manage roles but ranks below
+   the chairman.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 398 tests, 22 files |
+| `pnpm build` | pass — 103 kB, 12 API routes |
+
+Coverage of note: role tests assert that a lower-ranked actor cannot create a
+peer or superior role, cannot grant permissions it lacks, and cannot mint the
+wildcard; audit tests assert that update and delete are rejected at the ODM
+layer, that the repository exposes no write methods at all, and that a NIN
+change is recorded without either value appearing anywhere in the entry.
+
+### Still open
+
+- **Suspicious-login detection** now has its data source — failed logins are
+  audited with IP and user agent — but needs a notification channel to be useful.
+  Lands with Phase 10.
+- **Audit viewer UI** waits on the Phase 4 design system. The API is live.
+
+### Next
+
+Phase 4 — Design system & app shell. Primitives, states, the role-aware
+navigation shell, motion, and the lazy 3D wrapper. The gate route group ships
+without a 3D bundle.
+

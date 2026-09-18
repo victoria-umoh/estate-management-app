@@ -16,6 +16,8 @@ import { events } from '@/core/events';
 import { getIdentityProvider } from '@/integrations/identity';
 import { membershipRepository } from '@/modules/membership/repository';
 import type { MembershipDoc } from '@/modules/membership/schema';
+import { roleService } from '@/modules/role';
+import { auditService } from '@/modules/audit';
 import { userRepository } from '@/modules/user/repository';
 import type { UserDoc } from '@/modules/user/schema';
 import type { LoginInput, RegisterInput } from './dto';
@@ -220,6 +222,10 @@ export class AuthService {
     const passwordValid = await verifyPassword(input.password, user.passwordHash);
     if (!passwordValid) {
       await this.recordFailedLogin(user);
+      // Failed logins are audited as well as counted: a burst across many
+      // accounts from one address is the credential-stuffing signal, and the
+      // per-account lockout alone would not reveal it.
+      await this.auditLogin(user, request, 'failure', 'incorrect password');
       throw new AuthenticationError('Incorrect email or password.', ErrorCode.INVALID_CREDENTIALS);
     }
 
@@ -289,6 +295,7 @@ export class AuthService {
       },
     );
     await this.recordSuccessfulLogin(user, request.ip);
+    await this.auditLogin(user, request, 'success', undefined, selected.estateId.toHexString());
 
     return { tokens, user: this.publicUser(user) };
   }
@@ -301,6 +308,13 @@ export class AuthService {
     subject: SessionSubject,
     request: { ip?: string; userAgent?: string; deviceId?: string; deviceName?: string },
   ): Promise<AuthTokens> {
+    // Permissions are resolved once, here, and carried in the token. That is
+    // what lets the request path authorise without a database read.
+    const { roles, permissions } = await roleService.resolvePermissions(
+      subject.membership.estateId,
+      subject.membership.roleIds,
+    );
+
     const { token: refreshToken, hash } = generateRefreshToken();
 
     const session = await sessionRepository.create({
@@ -321,8 +335,8 @@ export class AuthService {
       userId: subject.user._id.toHexString(),
       estateId: subject.membership.estateId.toHexString(),
       sessionId: session._id.toHexString(),
-      roles: [],
-      permissions: [],
+      roles,
+      permissions,
       isPlatformAdmin: subject.user.isPlatformAdmin,
     });
 
@@ -397,12 +411,19 @@ export class AuthService {
       },
     });
 
+    // Re-resolved rather than copied from the old token: this is the point at
+    // which a revoked role or a changed permission set takes effect.
+    const { roles, permissions } = await roleService.resolvePermissions(
+      session.estateId,
+      membership.roleIds,
+    );
+
     const accessToken = await issueAccessToken({
       userId: user._id.toHexString(),
       estateId: session.estateId.toHexString(),
       sessionId: session._id.toHexString(),
-      roles: [],
-      permissions: [],
+      roles,
+      permissions,
       isPlatformAdmin: user.isPlatformAdmin,
     });
 
@@ -487,6 +508,42 @@ export class AuthService {
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * Write a login attempt to the audit trail.
+   *
+   * Uses a context built from the user rather than a request context, because
+   * at this point there is no authenticated session — the attempt is what is
+   * being recorded. Failures carry no estate, since a failed login has not yet
+   * established one.
+   */
+  private async auditLogin(
+    user: UserDoc,
+    request: { ip?: string; userAgent?: string },
+    outcome: 'success' | 'failure',
+    reason?: string,
+    estateId?: string,
+  ): Promise<void> {
+    await auditService.record(
+      {
+        userId: user._id.toHexString(),
+        estateId: estateId ?? '',
+        roles: [],
+        permissions: new Set<string>(),
+        correlationId: 'login',
+        ...(request.ip ? { ip: request.ip } : {}),
+        ...(request.userAgent ? { userAgent: request.userAgent } : {}),
+        isPlatformAdmin: false,
+      },
+      {
+        action: outcome === 'success' ? 'auth.login.succeeded' : 'auth.login.failed',
+        resource: 'session',
+        resourceId: user._id.toHexString(),
+        outcome,
+        ...(reason ? { reason } : {}),
+      },
+    );
+  }
 
   /**
    * The user fields safe to return.

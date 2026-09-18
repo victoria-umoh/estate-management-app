@@ -5,11 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 2 complete — starting Phase 3 (RBAC & audit)
-**Next action:** build `src/core/rbac`: the permission registry (~90
-`resource.action` strings), Role schema with system + custom estate roles, and
-`can()`. Then populate `roles`/`perms` in the access token, which currently ship
-empty, and add the append-only audit log.
+**Current phase:** 3 complete — starting Phase 4 (Design system & app shell)
+**Next action:** build the design system on the Phase 0 tokens: primitives
+(button, input, table, modal, card, badge, alert), empty/loading/error states,
+the role-aware app shell, and the lazy R3F scene wrapper.
 
 ---
 
