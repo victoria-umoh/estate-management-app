@@ -24,6 +24,20 @@ import { enforceRateLimit, rateLimitHeaders, type RateLimitRule } from './rate-l
 
 const log = createLogger('http');
 
+/**
+ * Ensure runtime seams are wired before the first request is handled.
+ *
+ * A dynamic import, so `core` keeps no compile-time dependency on `modules`,
+ * and so this works regardless of whether instrumentation ran in the same
+ * module graph as this route.
+ */
+let bootstrapped: Promise<void> | undefined;
+
+function ensureBootstrapped(): Promise<void> {
+  bootstrapped ??= import('@/bootstrap').then(({ bootstrap }) => bootstrap());
+  return bootstrapped;
+}
+
 export interface RouteHandlerArgs<TBody, TQuery, TParams> {
   body: TBody;
   query: TQuery;
@@ -85,6 +99,7 @@ export function defineRoute<
         { userId: string; route: string; idempotencyKey: string; fingerprint: string } | undefined;
 
       try {
+        await ensureBootstrapped();
         await connectToDatabase();
 
         // --- Authentication ---------------------------------------------------

@@ -62,6 +62,17 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   return promise;
 }
 
+/**
+ * Connection health, for the readiness probe.
+ *
+ * Exposed here so callers do not need to import mongoose directly — the
+ * layering rule forbids that outside the data layer, and a health check is not
+ * a good enough reason to make an exception to it.
+ */
+export function isDatabaseConnected(): boolean {
+  return mongoose.connection.readyState === 1;
+}
+
 export async function disconnectFromDatabase(): Promise<void> {
   if (!global.__mongooseConnection) return;
   await mongoose.disconnect();

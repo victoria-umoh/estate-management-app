@@ -2,27 +2,48 @@ import { createHash } from 'node:crypto';
 import { config } from '@/core/config';
 
 /**
- * Decode a hex-encoded key from configuration into raw bytes.
+ * Key material, derived on first use rather than at import.
  *
- * The config schema already guarantees ≥64 hex characters, so this is a decode
- * rather than a validation. We take the first 32 bytes so a longer key is
- * accepted without changing the AES-256 / HMAC-SHA256 key size.
+ * Module-level constants would read config as soon as the module loaded, which
+ * would make a production build demand the real encryption key just to compile.
+ * Secrets belong at runtime.
  */
+
 function decodeKey(hex: string): Buffer {
+  // The config schema already guarantees >= 64 hex characters, so this is a
+  // decode rather than a validation. Taking the first 32 bytes accepts a longer
+  // key without changing the AES-256 / HMAC-SHA256 key size.
   return Buffer.from(hex, 'hex').subarray(0, 32);
 }
 
-export const encryptionKey = decodeKey(config.crypto.encryptionKey);
-export const blindIndexKey = decodeKey(config.crypto.blindIndexKey);
-export const qrSigningKey = decodeKey(config.crypto.qrSigningSecret);
+let encryption: Buffer | undefined;
+let blindIndexKeyCache: Buffer | undefined;
+let qrKey: Buffer | undefined;
 
-export const currentKeyVersion = config.crypto.encryptionKeyVersion;
+export function getEncryptionKey(): Buffer {
+  encryption ??= decodeKey(config.crypto.encryptionKey);
+  return encryption;
+}
+
+export function getBlindIndexKey(): Buffer {
+  blindIndexKeyCache ??= decodeKey(config.crypto.blindIndexKey);
+  return blindIndexKeyCache;
+}
+
+export function getQrSigningKey(): Buffer {
+  qrKey ??= decodeKey(config.crypto.qrSigningSecret);
+  return qrKey;
+}
+
+export function currentKeyVersion(): number {
+  return config.crypto.encryptionKeyVersion;
+}
 
 /**
  * Short, non-reversible fingerprint of a key, safe to log.
  *
  * Lets us confirm which key a deployment loaded — and spot an accidental key
- * change — without ever putting key material in a log line.
+ * change — without putting key material in a log line.
  */
 export function keyFingerprint(key: Buffer): string {
   return createHash('sha256').update(key).digest('hex').slice(0, 8);

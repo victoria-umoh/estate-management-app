@@ -5,11 +5,11 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 1 complete — starting Phase 2 (Auth & identity)
-**Next action:** build `src/modules/auth`: user + session + device schemas,
-argon2id password hashing, access/refresh token issue and rotation with reuse
-detection, then register the resolver via `setContextResolver()` so the HTTP
-kernel stops failing closed.
+**Current phase:** 2 complete — starting Phase 3 (RBAC & audit)
+**Next action:** build `src/core/rbac`: the permission registry (~90
+`resource.action` strings), Role schema with system + custom estate roles, and
+`can()`. Then populate `roles`/`perms` in the access token, which currently ship
+empty, and add the append-only audit log.
 
 ---
 

@@ -1,5 +1,5 @@
 import { createDecipheriv, createCipheriv, randomBytes } from 'node:crypto';
-import { currentKeyVersion, encryptionKey } from './keys';
+import { currentKeyVersion, getEncryptionKey } from './keys';
 
 /**
  * Authenticated field-level encryption for sensitive identity data — NIN,
@@ -35,7 +35,7 @@ export interface EncryptedField {
  */
 export function encryptField(plaintext: string, context?: string): EncryptedField {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv(ALGORITHM, encryptionKey, iv);
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
   if (context) cipher.setAAD(Buffer.from(context, 'utf8'));
 
@@ -45,7 +45,7 @@ export function encryptField(plaintext: string, context?: string): EncryptedFiel
     ct: ct.toString('base64'),
     iv: iv.toString('base64'),
     tag: cipher.getAuthTag().toString('base64'),
-    v: currentKeyVersion,
+    v: currentKeyVersion(),
   };
 }
 
@@ -64,7 +64,7 @@ export function decryptField(field: EncryptedField, context?: string): string {
     throw new Error('Malformed encrypted field: unexpected IV or authentication tag length.');
   }
 
-  const decipher = createDecipheriv(ALGORITHM, encryptionKey, iv);
+  const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
   decipher.setAuthTag(tag);
   if (context) decipher.setAAD(Buffer.from(context, 'utf8'));
 

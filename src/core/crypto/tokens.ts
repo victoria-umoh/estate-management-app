@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { qrSigningKey } from './keys';
+import { getQrSigningKey } from './keys';
 
 /**
  * Signed, opaque tokens for QR credentials: resident IDs, vehicle tags,
@@ -49,7 +49,9 @@ function b64url(input: Buffer): string {
 }
 
 function sign(payloadB64: string): string {
-  return b64url(createHmac('sha256', qrSigningKey).update(`${VERSION}.${payloadB64}`).digest());
+  return b64url(
+    createHmac('sha256', getQrSigningKey()).update(`${VERSION}.${payloadB64}`).digest(),
+  );
 }
 
 /** Issue a signed credential token. */

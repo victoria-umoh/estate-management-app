@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { blindIndexKey } from './keys';
+import { getBlindIndexKey } from './keys';
 
 /**
  * Blind indexes: deterministic, keyed hashes that make an encrypted field
@@ -67,7 +67,9 @@ export function blindIndex(value: string, kind: BlindIndexKind = 'generic'): str
     throw new Error(`Cannot compute a blind index for an empty ${kind} value.`);
   }
 
-  return createHmac('sha256', blindIndexKey).update(`${kind}:${normalized}`, 'utf8').digest('hex');
+  return createHmac('sha256', getBlindIndexKey())
+    .update(`${kind}:${normalized}`, 'utf8')
+    .digest('hex');
 }
 
 /** Constant-time comparison of two blind indexes. */

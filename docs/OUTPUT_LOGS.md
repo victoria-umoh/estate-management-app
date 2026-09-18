@@ -182,3 +182,124 @@ Phase 2 — Auth & identity: user/session/device schemas, argon2id hashing,
 access and refresh tokens with rotation and reuse detection, OTP, TOTP 2FA,
 lockout, and the registration flow through to admin approval.
 
+---
+
+## 2026-09-18 15:30 UTC — Phase 2: Authentication & identity complete
+
+### Architecture decision made up front
+
+The spec asks for globally unique email, phone and NIN, *and* for multi-estate
+readiness where one person may belong to several estates. Those two pull apart
+if `estateId` sits on the user record.
+
+Resolved by splitting them:
+
+- **`users`** — global identity. Email, phone, NIN, password, 2FA. Uniqueness
+  enforced here, once, across the platform.
+- **`memberships`** — estate-scoped. Category, roles, approval state, property.
+  One row per user per estate.
+
+Login authenticates globally, then resolves which estates the account belongs
+to. One estate signs straight in; several return a choice and issue no tokens
+until one is picked. This also gave a clean answer to *where* users live: a new
+`PlatformRepository`, deliberately named to stand out in review, for the small
+set of collections that are not tenant-scoped by construction.
+
+### What was built
+
+argon2id password hashing with a policy that weights length over composition
+rules; access JWTs plus opaque refresh tokens; session and device registry; OTP
+and TOTP with backup codes; account lockout; pluggable NIN verification; and ten
+API routes, each rate limited to its own risk profile — 5 registrations per IP
+per 15 minutes, 3 OTP sends per user per 15 minutes, 5 NIN lookups per hour.
+
+### Decisions taken
+
+**Refresh tokens are not JWTs.** They are opaque random material, stored only as
+SHA-256 hashes. A database dump yields nothing usable, and a leaked signing key
+cannot mint long-lived sessions.
+
+**Reuse of a rotated refresh token revokes the entire session family.**
+Presenting a token that has already been rotated away means two parties hold it.
+We cannot tell the thief from the legitimate holder, so both are evicted. This
+signs the real user out — deliberately, and verified in tests.
+
+**The context resolver does no database read.** The access token already carries
+user, estate and permissions, and is short-lived precisely so it can be trusted
+without a lookup. Adding a read would put a round trip on the gate path. The
+cost is bounded and explicit: a revoked role takes effect at next refresh rather
+than instantly. Where that is not acceptable — a blacklisted vehicle, a revoked
+pass — the gate consults the credential store, which is authoritative.
+
+**Failed logins burn equivalent argon2 work.** Without it, an unknown account
+returns measurably faster than a wrong password, which is enough to enumerate
+registered emails.
+
+### Problems found and fixed
+
+1. **My own timing defence was broken.** The decoy hash used for non-existent
+   accounts was a hand-written constant — not a valid argon2 digest, so
+   verification rejected it during parsing and returned almost instantly,
+   burning none of the work it was supposed to burn. Now derived at startup from
+   real key material, with a test asserting the decoy costs comparable time.
+2. **Builds required production secrets.** Config validated at import, and a
+   production build imports every route module, so `pnpm build` demanded the
+   real encryption key. That is impractical for CI and pushes teams toward
+   baking secrets into images. Config now validates lazily on first access, with
+   `assertConfigValid()` at startup so a misconfigured deploy still dies at boot
+   rather than mid-request. Verified: the build now succeeds with no secrets
+   present at all.
+3. **Auth wiring never took effect at runtime.** `registerAuthContextResolver()`
+   ran in `instrumentation.ts`, but route handlers observed a different module
+   instance, so every authenticated route returned "Authentication is not
+   configured". Caught only by hitting a live server — every unit test passed.
+   The kernel now self-bootstraps via dynamic import on first request.
+4. **Device details were silently dropped.** The login DTO accepted `deviceId`
+   and `deviceName`, but the service never forwarded them, so every session
+   displayed as an unnamed device — useless for spotting an intruder. Also found
+   by end-to-end testing, not by unit tests.
+5. The tenancy guard rejected membership creation during registration, which was
+   correct: there is no authenticated context at that point. Resolved with a
+   system context scoped to the single estate being joined, rather than by
+   weakening the guard.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 327 tests, 19 files |
+| `pnpm build` | pass — 103 kB, and now builds with zero secrets |
+
+End-to-end against a live server and a real database:
+
+| Step | Result |
+|---|---|
+| Register | 201 |
+| Weak password | 400, field-level detail |
+| Duplicate email | 409 `DUPLICATE_IDENTITY` |
+| Login before approval | 403 `ACCOUNT_PENDING_APPROVAL` |
+| Login after approval | 200, tokens issued |
+| Wrong password | 401, message identical to unknown account |
+| Authenticated request | 200 |
+| Forged token signature | 401 `TOKEN_INVALID` |
+| Refresh | rotates to a new token |
+| Replay old refresh token | 401 `SESSION_REVOKED` |
+| Rotated token after reuse | 401 — whole family revoked |
+
+The production config guards also demonstrated themselves: `pnpm start` refused
+to boot against a development `.env.local`, naming each unsafe setting (mock NIN
+verifier, in-process rate limits, local file storage, console mailer).
+
+### Deferred, and why
+
+- **Email verification and password reset** need the mailer, which lands in
+  Phase 10. The OTP machinery they will use is built and tested.
+- **Suspicious-login detection** needs the audit trail, which lands in Phase 3.
+
+### Next
+
+Phase 3 — RBAC & audit. The access token currently ships empty `roles` and
+`perms` arrays, so no permission-gated route can pass yet. Phase 3 fills them.
+

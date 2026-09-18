@@ -10,6 +10,11 @@ import { defineRoute } from './define-route';
 // only, so that is stubbed out.
 vi.mock('@/core/db', () => ({ connectToDatabase: vi.fn().mockResolvedValue(undefined) }));
 
+// The kernel self-bootstraps runtime wiring on its first request, which would
+// install the real auth resolver and override the stub each test installs.
+// These tests cover the kernel, not the wiring; `bootstrap.test.ts` covers that.
+vi.mock('@/bootstrap', () => ({ bootstrap: vi.fn() }));
+
 function makeContext(overrides: Partial<RequestContext> = {}): RequestContext {
   return {
     userId: 'user-1',
