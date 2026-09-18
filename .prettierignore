@@ -1,0 +1,6 @@
+node_modules/
+.next/
+coverage/
+dist/
+pnpm-lock.yaml
+docs/OUTPUT_LOGS.md

@@ -1,0 +1,238 @@
+@import 'tailwindcss';
+
+/* next-themes is configured with the class strategy, so the dark variant keys
+   off `.dark` on <html> rather than the OS media query alone. That lets a
+   resident override the system theme and have it stick. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Colours are authored in OKLCH so that lightness is perceptually uniform:
+   swapping a hue keeps contrast ratios intact, which is what makes the dark
+   theme derivable rather than hand-tuned.
+
+   The palette is built around a jade primary (trust, security, calm) with a
+   warm neutral base, and a strict set of status hues. Status colours are NOT
+   decorative — they carry meaning at the gate and in incident triage, so they
+   are defined once here and never improvised at the call site.
+--------------------------------------------------------------------------- */
+
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.994 0.002 106);
+  --foreground: oklch(0.216 0.017 252);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.216 0.017 252);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.216 0.017 252);
+
+  --primary: oklch(0.548 0.114 175);
+  --primary-foreground: oklch(0.995 0.005 175);
+  --primary-muted: oklch(0.955 0.021 175);
+
+  --secondary: oklch(0.967 0.004 252);
+  --secondary-foreground: oklch(0.286 0.021 252);
+
+  --muted: oklch(0.967 0.004 252);
+  --muted-foreground: oklch(0.526 0.018 252);
+
+  --accent: oklch(0.955 0.021 175);
+  --accent-foreground: oklch(0.386 0.088 175);
+
+  --border: oklch(0.913 0.007 252);
+  --input: oklch(0.913 0.007 252);
+  --ring: oklch(0.548 0.114 175);
+
+  /* Status. Meaning is fixed platform-wide:
+     success = verified / paid / inside
+     warning = expiring / overdue soon / overstay approaching
+     danger  = denied / blacklisted / overdue / emergency
+     info    = pending / awaiting approval                       */
+  --success: oklch(0.596 0.132 152);
+  --success-foreground: oklch(0.985 0.01 152);
+  --success-muted: oklch(0.955 0.03 152);
+
+  --warning: oklch(0.746 0.152 76);
+  --warning-foreground: oklch(0.256 0.06 76);
+  --warning-muted: oklch(0.966 0.04 76);
+
+  --danger: oklch(0.586 0.204 27);
+  --danger-foreground: oklch(0.985 0.01 27);
+  --danger-muted: oklch(0.958 0.035 27);
+
+  --info: oklch(0.604 0.128 245);
+  --info-foreground: oklch(0.985 0.01 245);
+  --info-muted: oklch(0.958 0.028 245);
+
+  /* Elevation. Used instead of ad-hoc box-shadows so surfaces stack
+     consistently and can be flattened wholesale in dark mode. */
+  --shadow-subtle: 0 1px 2px 0 oklch(0.216 0.017 252 / 0.04);
+  --shadow-raised:
+    0 1px 3px 0 oklch(0.216 0.017 252 / 0.07), 0 1px 2px -1px oklch(0.216 0.017 252 / 0.05);
+  --shadow-overlay:
+    0 10px 30px -10px oklch(0.216 0.017 252 / 0.18), 0 4px 12px -6px oklch(0.216 0.017 252 / 0.1);
+}
+
+.dark {
+  --background: oklch(0.176 0.019 252);
+  --foreground: oklch(0.955 0.006 252);
+
+  --card: oklch(0.216 0.021 252);
+  --card-foreground: oklch(0.955 0.006 252);
+
+  --popover: oklch(0.226 0.022 252);
+  --popover-foreground: oklch(0.955 0.006 252);
+
+  --primary: oklch(0.716 0.122 175);
+  --primary-foreground: oklch(0.176 0.03 175);
+  --primary-muted: oklch(0.286 0.045 175);
+
+  --secondary: oklch(0.276 0.022 252);
+  --secondary-foreground: oklch(0.955 0.006 252);
+
+  --muted: oklch(0.276 0.022 252);
+  --muted-foreground: oklch(0.706 0.017 252);
+
+  --accent: oklch(0.286 0.045 175);
+  --accent-foreground: oklch(0.866 0.086 175);
+
+  --border: oklch(0.306 0.021 252);
+  --input: oklch(0.306 0.021 252);
+  --ring: oklch(0.716 0.122 175);
+
+  --success: oklch(0.716 0.138 152);
+  --success-foreground: oklch(0.166 0.04 152);
+  --success-muted: oklch(0.286 0.05 152);
+
+  --warning: oklch(0.806 0.142 76);
+  --warning-foreground: oklch(0.196 0.05 76);
+  --warning-muted: oklch(0.306 0.06 76);
+
+  --danger: oklch(0.686 0.176 27);
+  --danger-foreground: oklch(0.166 0.04 27);
+  --danger-muted: oklch(0.306 0.07 27);
+
+  --info: oklch(0.706 0.126 245);
+  --info-foreground: oklch(0.166 0.04 245);
+  --info-muted: oklch(0.296 0.055 245);
+
+  --shadow-subtle: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-raised: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.3);
+  --shadow-overlay: 0 10px 30px -10px oklch(0 0 0 / 0.6), 0 4px 12px -6px oklch(0 0 0 / 0.4);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-muted: var(--primary-muted);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-muted: var(--danger-muted);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-muted: var(--info-muted);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-subtle: var(--shadow-subtle);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Motion. Durations are deliberately short — this is an operations tool, and
+     the gate screen is used hundreds of times a day. Animation confirms state
+     changes; it never gates them. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-instant: 100ms;
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 400ms;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* A visible, consistent focus ring is a hard requirement: security officers
+     work this app by keyboard at the gate, and residents include users of
+     assistive technology. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Honour the OS reduced-motion setting everywhere, including the 3D scenes,
+     which check this flag before starting their render loop. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Skip-to-content target, visible only when focused. */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}

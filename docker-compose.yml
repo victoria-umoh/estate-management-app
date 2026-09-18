@@ -1,0 +1,107 @@
+# Local development infrastructure.
+#
+# MongoDB runs as a SINGLE-NODE REPLICA SET, not standalone. The platform uses
+# multi-document transactions for every financial and critical state change and
+# those are unavailable on standalone mongod. The `mongo-init` service performs
+# the one-time `rs.initiate()` and then exits.
+#
+# Host ports are deliberately non-default (27018 / 6381 / 9002-9003) because the
+# standard ports are commonly already bound by a local mongod, Redis or another
+# project's MinIO. The in-container ports are unchanged.
+#
+#   docker compose up -d && pnpm db:wait
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: estate-mongo
+    restart: unless-stopped
+    command: ['--replSet', 'rs0', '--bind_ip_all', '--port', '27017']
+    ports:
+      - '27018:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mongo-init:
+    image: mongo:7
+    container_name: estate-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: 'no'
+    command: >
+      mongosh --host mongo:27017 --quiet --eval '
+        try {
+          rs.status();
+          print("replica set already initialised");
+        } catch (e) {
+          rs.initiate({
+            _id: "rs0",
+            members: [{ _id: 0, host: "localhost:27017" }]
+          });
+          print("replica set initialised");
+        }
+      '
+
+  redis:
+    image: redis:7-alpine
+    container_name: estate-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6381:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible private object storage for resident documents.
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: estate-minio
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - '9002:9000' # S3 API
+      - '9003:9001' # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the documents bucket and keeps it PRIVATE. Access is only ever
+  # granted through short-lived presigned URLs issued after a permission check.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: estate-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin} &&
+        mc mb --ignore-existing local/${S3_BUCKET:-estate-documents} &&
+        mc anonymous set none local/${S3_BUCKET:-estate-documents} &&
+        echo 'bucket ready (private)'
+      "
+
+volumes:
+  mongo-data:
+  redis-data:
+  minio-data:
