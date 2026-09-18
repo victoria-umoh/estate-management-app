@@ -5,10 +5,11 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 0 complete — starting Phase 1 (Core platform)
-**Next action:** build `src/core/config` (Zod-validated env loader that fails
-fast), then `src/core/db` (connection, transaction helper, `BaseRepository`
-with the estateId tenancy guard).
+**Current phase:** 1 complete — starting Phase 2 (Auth & identity)
+**Next action:** build `src/modules/auth`: user + session + device schemas,
+argon2id password hashing, access/refresh token issue and rotation with reuse
+detection, then register the resolver via `setContextResolver()` so the HTTP
+kernel stops failing closed.
 
 ---
 
@@ -44,18 +45,19 @@ with the estateId tenancy guard).
 
 ## Phase 1 — Core platform
 
-- [ ] `core/config` — Zod-validated env loader, fails fast
-- [ ] `core/db` — connection, transaction helper, `BaseRepository` + tenancy guard
-- [ ] `core/crypto` — AES-256-GCM field encryption, HMAC blind index, QR signing
-- [ ] `core/errors` — error taxonomy and HTTP mapping
-- [ ] `core/logging` — pino, correlation IDs, redaction
-- [ ] `core/events` — in-process bus, queue hand-off
-- [ ] `core/http` — `defineRoute()` kernel, response envelope, rate limit, idempotency
-- [ ] `integrations/cache` — memory | ioredis | upstash
-- [ ] `integrations/queue` — inline | bullmq | cron-route
-- [ ] `integrations/storage` — local | s3
-- [ ] `core/observability` — Sentry init (server/client/edge), New Relic agent loader, OTel bridge
-- [ ] Tests: crypto round-trip, blind index stability, tenancy guard, rate limiter
+- [x] `core/config` — Zod-validated env loader, fails fast, production guards
+- [x] `core/db` — connection, transaction helper, `BaseRepository` + tenancy guard
+- [x] `core/crypto` — AES-256-GCM field encryption, HMAC blind index, signed QR tokens
+- [x] `core/errors` — error taxonomy, normalisation, safe serialisation
+- [x] `core/logging` — pino, correlation IDs via AsyncLocalStorage, redaction
+- [x] `core/events` — in-process bus with handler isolation
+- [x] `core/http` — `defineRoute()` kernel, envelope, rate limit, idempotency
+- [x] `core/tenancy` — RequestContext, permission helpers, tenant assertions
+- [x] `integrations/cache` — memory | ioredis | upstash
+- [x] `integrations/queue` — inline | bullmq (cron-route runs handlers directly)
+- [x] `integrations/storage` — local | s3, with magic-number upload validation
+- [x] `core/observability` — Sentry (lazy-loaded), New Relic agent config, scrubbing
+- [x] Tests — 238 passing, including 22 tenant-isolation tests against a real replica set
 
 ## Phase 2 — Auth & identity
 
