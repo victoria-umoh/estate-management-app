@@ -17,6 +17,10 @@ export function setupTestDatabase(): void {
   beforeAll(async () => {
     replSet = await MongoMemoryReplSet.create({
       replSet: { count: 1, storageEngine: 'wiredTiger' },
+      // The default 10s launch allowance is tight on a loaded machine, and a
+      // timeout there surfaces as an unexplained suite failure rather than as
+      // "the database was slow to start".
+      instanceOpts: [{ launchTimeout: 60_000 }],
     });
     await mongoose.connect(replSet.getUri(), { dbName: 'test' });
   }, 120_000);

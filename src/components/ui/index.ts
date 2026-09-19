@@ -27,3 +27,4 @@ export {
 } from './dialog';
 export { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog';
 export { ThemeToggle } from './theme-toggle';
+export { Toaster } from './toaster';

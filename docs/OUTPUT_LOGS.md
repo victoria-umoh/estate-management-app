@@ -499,3 +499,88 @@ per-page, not shared, so the gate route will not pay for either.
 Phase 5 — Estate core: estates and settings, properties with ownership and
 tenant history, resident profiles, households, and the tenant lifecycle.
 
+---
+
+## 2026-09-19 07:25 UTC — Bundle budget guard + Phase 5 (part 1): Estates & properties
+
+### Requested: stop the shared bundle drifting
+
+Added `bundle-budget.json` and `scripts/check-bundle-budget.mjs`, wired into
+`pnpm build` so it cannot be skipped. The script reads the production manifest,
+gzips each emitted chunk, computes the set of files every route loads, and fails
+the build when a budget is exceeded — naming the largest shared chunks so the
+cause is obvious rather than a hunt.
+
+**It caught a real leak on its first run.** Shared was 111.2 kB against a 110 kB
+budget, and the offending chunk was 10.2 kB of **Sonner plus next-themes**,
+sitting in the root layout and therefore in the first load of *every* route —
+including the API routes and the future gate scanner, none of which will ever
+show a toast on first paint.
+
+Moving the Toaster behind `dynamic(..., { ssr: false })` brought shared to
+**103.8 kB — 7.4 kB saved on every single page**. The budget is now set to
+106 kB: roughly 2% headroom, which is thin enough that any real library (all of
+them are more than 5 kB gzipped) trips it immediately, while a React or Next
+patch release does not.
+
+### Phase 5, part 1: estates and properties
+
+Estates, their operational settings, and properties with full occupancy history.
+
+### Decisions taken
+
+**Occupancy is its own append-only collection, not fields on the property.**
+Relationships end while the property persists: owners sell, tenants move out,
+leases lapse. Gate logs, invoices and incident reports from a past tenancy all
+point back at that relationship, and a dispute six months later is exactly when
+it matters. Ending a tenancy closes the record; it never deletes it.
+
+**One current holder per role is enforced by a partial unique index**, not by
+application logic. Checking in code would let two concurrent transfers both
+succeed and leave a property with two owners.
+
+**Ownership transfer is distinct from ordinary assignment**, because a sale can
+also end the sitting tenancy — a buyer inherits the property, not the seller's
+agreements. It is opt-in (`endExistingTenancies`), and the audit entry records
+both parties and the unit number explicitly, since this is among the
+highest-consequence actions in the system. The route is idempotent, so a retry
+after a timeout cannot create a second ownership record.
+
+**Overcrowding is logged, not blocked.** Registering more occupants than a
+property's stated maximum produces a warning rather than a refusal: blocking it
+would push the arrangement off-system entirely, and an estate that cannot see
+overcrowding cannot address it.
+
+**Estate creation seeds roles in the same operation.** An estate without roles
+has no chairman, no officers and no way to admit anyone — it would exist but be
+unusable, and the failure would surface later as a confusing permissions problem
+rather than as a failed signup.
+
+### Problem found and fixed
+
+**The in-memory MongoDB harness timed out at 10s** on a loaded machine, failing
+whole suites with `Instance failed to start` — which reads as a code fault
+rather than a slow start. My first fix set `MONGOMS_STARTUP_TIMEOUT`, which is
+not a real configuration key and did nothing; the timeout is an *instance*
+option. Now set properly via `instanceOpts: [{ launchTimeout: 60_000 }]`.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 433 tests, 24 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.8 kB / 106 kB |
+
+Property tests cover: history preserved across transfers, the full ownership
+chain retained, exactly one open record per role, tenancies optionally ended by
+a sale, lease-expiry windows, and that another estate can neither read nor
+transfer a property.
+
+### Next
+
+Phase 5, part 2 — the resident directory, households and dependants, the tenant
+invitation flow, and the sensitive-field change-approval workflow.
+

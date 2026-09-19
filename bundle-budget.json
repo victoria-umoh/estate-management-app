@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "Bundle size budgets, in kilobytes of gzipped JavaScript.",
+    "",
+    "The shared budget is the one that matters most. Every route pays it, so a",
+    "library that leaks into the shared chunk is charged to the gate scanner \u2014",
+    "the screen that runs on cheap tablets over poor connections and must stay",
+    "fast. Framer Motion, Three.js and Sonner are deliberately per-page or",
+    "dynamically imported; if `shared` climbs, one of them has escaped.",
+    "",
+    "Headroom is deliberately thin (~2%). Any real library is more than 5 kB",
+    "gzipped, so a leak trips this immediately, while a React or Next patch",
+    "release does not.",
+    "",
+    "Raise a budget only with a reason recorded in docs/OUTPUT_LOGS.md."
+  ],
+  "shared": 106,
+  "routes": {
+    "default": 260,
+    "/security/scan": 150,
+    "/security": 180
+  }
+}

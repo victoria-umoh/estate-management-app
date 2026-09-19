@@ -5,10 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 4 complete — starting Phase 5 (Estate core)
-**Next action:** build `src/modules/estate` and `src/modules/property`: estate
-settings, properties with ownership and tenant history, then residents,
-households and the tenant lifecycle.
+**Current phase:** 5 partially complete — estates and properties done
+**Next action:** finish Phase 5: the resident directory (`src/modules/resident`),
+households and dependants, the tenant invitation flow, and the sensitive-field
+change-approval workflow. Then Phase 6 (digital ID and vehicles).
 
 ---
 
