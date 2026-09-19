@@ -5,10 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 5 partially complete — estates and properties done
-**Next action:** finish Phase 5: the resident directory (`src/modules/resident`),
-households and dependants, the tenant invitation flow, and the sensitive-field
-change-approval workflow. Then Phase 6 (digital ID and vehicles).
+**Current phase:** 5 complete — starting Phase 6 (Digital ID & vehicles)
+**Next action:** build `src/modules/credential` (Estate ID generation, signed
+rotating QR, the `access_credentials` gate fast path) and `src/modules/vehicle`
+(registration, documents, blacklist, vehicle QR).
 
 ---
 

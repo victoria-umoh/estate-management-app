@@ -191,6 +191,7 @@ export class AuthService {
       $set: {
         nin: encryptField(nin, `user:${user._id.toHexString()}:nin`),
         ninIndex: blindIndex(nin, 'nin'),
+        ninLast4: nin.replace(/\D/g, '').slice(-4),
         ninVerifiedAt: new Date(),
         ninVerificationRef: result.reference,
       },

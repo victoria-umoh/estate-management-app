@@ -36,6 +36,15 @@ export interface UserDoc {
   nin?: EncryptedField | null;
   /** HMAC of the NIN — searchable, unique, not reversible. */
   ninIndex?: string | null;
+  /**
+   * Last four digits, stored in the clear.
+   *
+   * Four digits of an eleven-digit number leave ten million combinations, so
+   * they identify nobody on their own — and they are the entire purpose of
+   * masking: letting staff confirm a match against a physical slip without the
+   * full number ever being on screen or decrypted.
+   */
+  ninLast4?: string | null;
   ninVerifiedAt?: Date | null;
   ninVerificationRef?: string | null;
 
@@ -99,6 +108,7 @@ const userSchema = new Schema<UserDoc>(
 
     nin: { type: encryptedFieldSchema, default: null },
     ninIndex: { type: String, default: null },
+    ninLast4: { type: String, default: null },
     ninVerifiedAt: { type: Date, default: null },
     ninVerificationRef: { type: String, default: null },
 

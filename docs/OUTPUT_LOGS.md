@@ -584,3 +584,92 @@ transfer a property.
 Phase 5, part 2 — the resident directory, households and dependants, the tenant
 invitation flow, and the sensitive-field change-approval workflow.
 
+---
+
+## 2026-09-19 07:52 UTC — Phase 5 (part 2) complete: Residents, households, change approval
+
+### What was built
+
+The resident directory, dependants and households, and the approval workflow for
+resident details that cannot be edited freely.
+
+### Decisions taken
+
+**Three separate resident view shapes, each an explicit allow-list.** The
+directory carries no contact details; a profile carries them with the NIN
+masked; a gate screen carries a name, category, unit and photo and nothing else.
+The difference between them is a security boundary, not a convenience, so none
+of them is built by spreading a database document — a field added to the schema
+later cannot leak by being forgotten.
+
+**Dependants are their own collection, not stub `users` rows.** A five-year-old
+has no email, no phone and no password. Manufacturing an account for one would
+put a permanently unverifiable, unloginable row into the identity collection —
+the one place where every row is meant to be a verified person. Dependants still
+get a profile and can be issued an ID, because the gate needs to recognise them,
+and `linkedMembershipId` connects them to a real account later without rewriting
+history.
+
+**A resident may manage only their own household.** `household.create` on its
+own would otherwise let any resident add a dependant to a neighbour's house —
+and a dependant is someone the gate will admit. Staff who can approve or update
+residents may manage any household.
+
+**A change request cannot be reviewed by the person who submitted it.** Without
+that, a member of staff holding both `resident.update` and `resident.approve`
+could change their own NIN, or move themselves to another property, entirely
+unobserved. Proposing and approving are different acts by different people.
+
+**Availability is re-checked at approval, not only at submission.** A competing
+account may have taken the phone number or NIN while the request sat in the
+queue. On a clash the request stays pending rather than being marked approved
+with nothing applied.
+
+**Approving a NIN or phone change clears its verification.** Carrying the old
+verification across to a new value would be a lie, and a phone number is a
+password-reset path.
+
+### Problems found and fixed
+
+1. **My own masking was fabricating data.** `detail()` computed
+   `maskNin('00000000000')`, which renders `•••••••0000` — output that looks
+   like a real masked NIN but whose last four digits are invented, which is
+   worse than showing nothing. Now backed by a real `ninLast4` field, stored in
+   the clear: four digits of eleven leave ten million combinations, so they
+   identify nobody on their own, and they are precisely what masking exists to
+   provide — letting staff match a physical slip without decrypting anything.
+
+2. **The audit redaction filter blanked a boolean.** A metadata flag named
+   `hasNin` was redacted because the filter matches field names loosely. Over-
+   redacting is the correct default for an audit trail, so the field was renamed
+   to `identityProvided` rather than the filter weakened — with a comment so the
+   next person does not fight it.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 487 tests, 27 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.8 kB / 106 kB |
+
+Coverage of note: the directory never contains a NIN even masked; the gate
+identity shape is asserted key-by-key so a future addition to it fails the test
+rather than silently reaching the gate; every NIN reveal is audited, including
+failures, without the value ever entering the trail; and a submitter cannot
+review their own request.
+
+### Deferred, and why
+
+**The tenant invitation flow** needs the mailer to actually invite anyone. The
+underlying pieces — tenancy records, approval, occupancy history — are all
+built and tested; only the invitation message is missing. It lands with Phase 10.
+
+### Next
+
+Phase 6 — Digital ID and vehicles: Estate ID generation, the signed rotating QR,
+the `access_credentials` denormalised gate fast path, and vehicle registration
+with blacklisting.
+
