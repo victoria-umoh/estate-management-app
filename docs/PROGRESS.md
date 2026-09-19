@@ -5,10 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 3 complete — starting Phase 4 (Design system & app shell)
-**Next action:** build the design system on the Phase 0 tokens: primitives
-(button, input, table, modal, card, badge, alert), empty/loading/error states,
-the role-aware app shell, and the lazy R3F scene wrapper.
+**Current phase:** 4 complete — starting Phase 5 (Estate core)
+**Next action:** build `src/modules/estate` and `src/modules/property`: estate
+settings, properties with ownership and tenant history, then residents,
+households and the tenant lifecycle.
 
 ---
 

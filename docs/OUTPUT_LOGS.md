@@ -401,3 +401,101 @@ Phase 4 — Design system & app shell. Primitives, states, the role-aware
 navigation shell, motion, and the lazy 3D wrapper. The gate route group ships
 without a 3D bundle.
 
+---
+
+## 2026-09-19 05:45 UTC — PORT configuration + Phase 4: Design system & app shell
+
+### Requested: custom port via env
+
+Added `PORT` and `HOST` to `.env.example` and the config schema.
+
+Next binds its port *before* it loads `.env.local`, so a `PORT` written there is
+ignored by `next dev` on its own — a genuinely confusing failure, because the
+variable is clearly present and clearly not working. `scripts/next-with-env.mjs`
+now loads the env file first and passes the value through as a CLI flag, which
+is the one place Next honours it. A `PORT` already exported in the shell still
+wins, matching Next's own precedence.
+
+Verified: `PORT=3777` in `.env.local` binds 3777, and `/api/health` answers there.
+
+### Phase 4: what was built
+
+Primitives (button, input, badge, card, alert, table, dialog, skeleton), the
+empty/error/permission-denied states, a confirm dialog, toasts, the theme
+toggle, motion primitives, the lazy 3D wrapper, and a permission-filtered app
+shell. A `/design-system` page renders all of it for visual checking.
+
+### Decisions taken
+
+**Status tones carry fixed meaning and are never conveyed by colour alone.**
+Success is verified/paid/inside, warning is expiring or approaching a limit,
+danger is denied/blacklisted/overdue, info is pending. Badges take a `dot`
+variant so the state is legible without colour vision.
+
+**The `lg` button is 44px tall and the gate uses it.** That interface is
+operated on a tablet, often one-handed, sometimes in the rain.
+
+**Type-to-confirm on irreversible actions.** Blacklisting a vehicle requires
+typing the plate number. Friction is the point: these should not be possible to
+do by reflex.
+
+**3D scenes skip rather than degrade.** The wrapper renders its fallback outright
+when WebGL is unavailable, the canvas is off-screen, reduced motion is set, or
+the feature flag is off. A hero below the fold costs no WebGL context until
+someone scrolls to it, and `dpr` is capped at 2 so a high-DPI phone does not
+render four times the pixels it needs for a decorative background.
+
+**Motion collapses to instant under `prefers-reduced-motion`** — the primitives
+render a plain `div` rather than running a faster animation, so no motion
+machinery executes at all.
+
+**Navigation is permission-filtered in the shell, and every route still enforces
+server-side.** Hiding a link someone cannot use keeps the interface honest; it
+is not what keeps them out.
+
+### Problem found and fixed
+
+**Alert text was nearly invisible in three of four tones.** I used the tone's
+`*-foreground` token as the body text colour on a `*-muted` background. Those
+tokens are near-white — they are the text colour for a *solid* tone fill. On a
+pale background they rendered at almost no contrast. Only warning read
+correctly, because its foreground token happens to be dark, which is exactly the
+kind of coincidence that hides a bug.
+
+Caught by screenshotting the page rather than by asserting the markup existed.
+Body text is now `text-foreground`, with tone carried by the border, icon and
+title.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 398 tests, 22 files |
+| `pnpm build` | pass — shared First Load JS still 103 kB |
+
+Visual, via Playwright screenshots of `/design-system`:
+
+| Check | Result |
+|---|---|
+| Light, 1280px | pass |
+| Dark, 1280px | pass |
+| Mobile, 320px | pass |
+| Horizontal overflow at 320px | 0px in all three |
+
+The shared bundle staying at 103 kB matters: Framer Motion and Three.js are
+per-page, not shared, so the gate route will not pay for either.
+
+### Deferred, and why
+
+- **Command palette** needs real data to search over. Lands in Phase 11 with
+  global search.
+- **Audit viewer UI** likewise — the API is live, the screen belongs with the
+  other reporting surfaces in Phase 11.
+
+### Next
+
+Phase 5 — Estate core: estates and settings, properties with ownership and
+tenant history, resident profiles, households, and the tenant lifecycle.
+

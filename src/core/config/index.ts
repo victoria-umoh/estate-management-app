@@ -83,6 +83,8 @@ function buildConfig() {
     app: {
       name: env.APP_NAME,
       url: env.APP_URL,
+      port: env.PORT,
+      host: env.HOST,
       supportEmail: env.APP_SUPPORT_EMAIL,
       corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS,
       runtimeTarget: env.RUNTIME_TARGET,

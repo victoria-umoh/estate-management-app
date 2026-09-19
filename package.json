@@ -7,9 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/next-with-env.mjs dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/next-with-env.mjs start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

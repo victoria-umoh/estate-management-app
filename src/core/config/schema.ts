@@ -35,6 +35,8 @@ export const envSchema = z
   .object({
     // --- Application -------------------------------------------------------
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: port.default(3000),
+    HOST: z.string().default('localhost'),
     APP_URL: z.string().url(),
     APP_NAME: z.string().min(1).default('EstateOS'),
     APP_SUPPORT_EMAIL: z.string().email().default('support@example.com'),
