@@ -866,3 +866,84 @@ Phase 8 — incidents, emergencies and service requests. The deferred UI work (t
 digital ID card and the gate scanner screen) is still outstanding and should
 follow, since both now have complete APIs behind them.
 
+---
+
+## 2026-09-21 21:41 UTC — Phase 8: Incidents, emergencies and service requests
+
+### What was built
+
+Three modules that share a shape — report, assign, resolve, close — and differ
+in the places that matter.
+
+### Decisions taken
+
+**An emergency requires only a type.** Description, location, coordinates and
+contact number are all optional. This record is created by someone in trouble,
+possibly one-handed, possibly on behalf of someone else, and a validation error
+at that moment is a failure of the product rather than of the caller. The rate
+limit is generous for the same reason: a duplicate alert is an annoyance, a
+refused one is not.
+
+**Response time is stored, not derived.** It is the figure an estate will be
+judged on, and deriving it would mean a later correction to a timestamp could
+quietly improve a past number.
+
+**A false alarm is an outcome, not a deletion.** A resident who fears being
+blamed for one is a resident who hesitates next time, and the hesitation is the
+real danger.
+
+**Incident `closed` is terminal.** Reopening means raising a new incident that
+references the old one, so the original timeline stays intact — a record that
+can be edited after a dispute starts is not much of a record.
+
+**Involved persons and vehicles accept free text.** "A tall man in a blue shirt"
+is often the most accurate thing a reporter can say, and requiring a resident id
+would discard the only description anyone has.
+
+**Internal comments are staff-only, and a resident cannot mark their own comment
+internal** — doing so would hide it from the very people handling their case.
+
+**A service request's SLA target is fixed on the row at creation.** Changing the
+policy later must not retroactively re-date existing tickets, which would shift
+an estate's reported performance for work already done.
+
+**Only the requester may rate a ticket.** A ticket closed and rated by the
+person who did the work is exactly how "resolved" quietly diverges from "fixed".
+
+### Problem found and fixed
+
+**Incidents sorted by severity alphabetically.** The list query sorted on the
+`severity` string descending, which orders `medium > low > high > critical` —
+so a critical incident would sit *below* a noise complaint, which is precisely
+the failure the sort existed to prevent. Caught by a test asserting a critical
+incident appears above a low one.
+
+Fixed with a numeric `severityRank` kept in step by the service and used for
+ordering. The mapping lives in one place, and the index was updated to match.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 595 tests, 31 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.9 kB / 106 kB |
+
+### Where the project stands
+
+Every backend domain in the original brief now has a tested API. What does not
+exist is the **interface** — and that is now the whole gap. The gate scanner in
+particular is the screen the entire latency design was built for, and it has no
+surface at all.
+
+I would build the gate scanner, the digital ID card and the security dashboard
+together rather than separately: they share the credential display, the status
+badges and the scan result components, and doing them in one pass avoids three
+separate design passes over the same material.
+
+### Next
+
+The consolidated security and identity UI.
+

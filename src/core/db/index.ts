@@ -7,6 +7,7 @@ export {
 export { withTransaction, withOptionalTransaction } from './transaction';
 export { BaseRepository } from './base-repository';
 export { PlatformRepository } from './platform-repository';
+export { nextReference, allocateReference } from './reference';
 export {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,

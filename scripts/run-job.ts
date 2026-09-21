@@ -14,6 +14,10 @@ const JOBS = {
     const { runOverstaySweep } = await import('@/jobs/overstay-sweep');
     return runOverstaySweep();
   },
+  'sla-sweep': async () => {
+    const { serviceRequestService } = await import('@/modules/service-request');
+    return serviceRequestService.escalateOverdue();
+  },
 } as const;
 
 type JobName = keyof typeof JOBS;

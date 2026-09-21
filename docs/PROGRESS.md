@@ -5,9 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 7 complete — gates, visitor passes, movement log, overstay sweep
-**Next action:** Phase 8 (incidents, emergencies, service requests), then return
-to the deferred UI work: the digital ID card and the gate scanner screen.
+**Current phase:** 8 complete — incidents, emergencies, service requests
+**Next action:** the deferred UI work, which is now the gap. Every backend
+domain has a tested API and no surface: the gate scanner, the digital ID card,
+and the security dashboard should be built together since they share components.
 
 ---
 
