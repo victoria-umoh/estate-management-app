@@ -50,9 +50,18 @@ export interface RouteDefinition<TBody, TQuery, TParams, TResult> {
   auth?: false;
   /** Every permission listed must be held. */
   permissions?: string[];
-  body?: z.ZodType<TBody>;
-  query?: z.ZodType<TQuery>;
-  params?: z.ZodType<TParams>;
+  /**
+   * Input schemas.
+   *
+   * The third type parameter is `unknown` rather than left to default, so that
+   * schemas using `.transform()` or `.default()` — where the parsed output
+   * differs from the accepted input — are assignable here. Without it, any
+   * schema that coerces a query string to a number or normalises a phone number
+   * fails to typecheck at the route, which is precisely where those belong.
+   */
+  body?: z.ZodType<TBody, z.ZodTypeDef, unknown>;
+  query?: z.ZodType<TQuery, z.ZodTypeDef, unknown>;
+  params?: z.ZodType<TParams, z.ZodTypeDef, unknown>;
   rateLimit?: RateLimitRule;
   /** Honour the `Idempotency-Key` header. Use on anything that moves money. */
   idempotent?: boolean;
@@ -235,7 +244,7 @@ export function defineRoute<
 
 // -----------------------------------------------------------------------------
 
-function parse<T>(schema: z.ZodType<T>, value: unknown, source: string): T {
+function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, value: unknown, source: string): T {
   const result = schema.safeParse(value);
   if (result.success) return result.data;
 

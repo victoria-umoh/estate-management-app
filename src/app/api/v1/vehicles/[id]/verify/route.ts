@@ -13,7 +13,7 @@ export const POST = defineRoute({
   permissions: [PERMISSIONS.VEHICLE_VERIFY],
   params: z.object({ id: z.string() }),
   body: z.object({
-    ownerLabel: z.string().trim().max(60).optional(),
+    ownerLabel: z.string().trim().max(60).default('Resident'),
     unitNumber: z.string().trim().max(20).optional(),
   }),
   status: 200,
@@ -22,7 +22,7 @@ export const POST = defineRoute({
     const { token, vehicle } = await vehicleService.verify(
       ctx,
       params.id,
-      body.ownerLabel ?? 'Resident',
+      body.ownerLabel,
       body.unitNumber ?? undefined,
     );
 

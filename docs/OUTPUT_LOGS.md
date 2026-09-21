@@ -775,3 +775,94 @@ it, so the two land together rather than issuing credentials nobody can see.
 
 Phase 7 — Gates, visitor passes, entry/exit logging and overstay detection.
 
+---
+
+## 2026-09-21 20:13 UTC — Phase 7: Gates, visitor passes, movement log, overstay sweep
+
+### What was built
+
+Gates, visitor and walk-in passes, the immutable movement log, the full gate
+workflow, and the overstay sweep. The spec's visitor and overstay workflows now
+run end to end and are tested as such.
+
+### Decisions taken
+
+**Expected and walk-in passes share one collection.** Once issued they behave
+identically, so the gate, the sweep and the reports each handle one shape rather
+than two. What actually differs — who created it, and whether a host approved
+it — is recorded on the row. `hostApproved` matters: an officer admitting
+someone because they reached the resident and an officer admitting on their own
+judgement are different acts, and only one is defensible afterwards.
+
+**Visitor codes exclude O/0, I/1 and S/5.** The code is read aloud over a phone,
+copied from a screenshot, and typed by an officer in poor light. A code that is
+technically unique but practically confusable costs more than the entropy it
+saves.
+
+**Movements are recorded for denials as carefully as for admissions.** The
+denials are what an investigation is usually looking for — a pattern of refused
+scans at 3am is the signal worth having — and an officer cannot be expected to
+log them separately while someone is arguing at the barrier.
+
+**The movement log keeps its own copy of who passed through.** `subjectLabel`,
+unit number and plate are captured at the moment of the event rather than
+referenced. If a pass is later deleted or a resident leaves the estate, the log
+must still say who came through; one that resolves to "unknown" is no use as
+evidence. Tested by deleting the pass and asserting the movement still names the
+visitor.
+
+**Checkout revokes the credential**, so a spent code cannot admit a second visit
+the same day. If that revocation fails it is logged loudly but does not fail the
+checkout — leaving a visitor recorded as still inside would be worse than a pass
+that stays technically valid until it expires.
+
+**Overstay is raised once per pass.** Without `overstayNotifiedAt`, a sweep
+every five minutes would message the host every five minutes, and a host being
+pestered stops reading the alerts entirely — which costs more than the overstay
+did. Each estate's own grace period is honoured in a single pass across all
+estates.
+
+**The cron route authenticates with a length-safe secret comparison** and sits
+outside the `/api/v1` kernel deliberately: it has no session and is not a
+user-facing API. Without the secret, anyone who found the URL could trigger
+sweeps at will.
+
+### Problem found and fixed
+
+**The route kernel rejected any schema using `.transform()` or `.default()`.**
+`z.ZodType<T>` binds input and output to the same type, so a query schema that
+coerces a string to a number — exactly the coercion that belongs at a route
+boundary — failed to typecheck. I had already worked around this once in Phase 6
+by dropping a `.default()`; hitting it a second time made clear the kernel was
+wrong, not the call sites. Widened the generics to `z.ZodType<T, ZodTypeDef,
+unknown>` and restored the workaround.
+
+Also removed dead code from the overstay query: I had computed a "widest grace"
+bound, not used it, and silenced the unused variable with `void`. The correct
+bound is the *narrowest* grace across estates — no pass can be overstaying under
+any estate's rules before then — so the query now uses that and actually
+narrows.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 555 tests, 30 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.9 kB / 106 kB |
+| `pnpm bench:gate` | pass — IXSCAN confirmed, cold p95 0.39 ms |
+
+The spec's workflows are tested as workflows, not only as units: resident
+creates a pass → visitor arrives → security scans in → visitor shows as inside →
+scans out → visit completed, with both movements recorded. And: pass expires →
+visitor still inside → grace exceeded → sweep raises it once → host notified via
+event → audit entry written.
+
+### Next
+
+Phase 8 — incidents, emergencies and service requests. The deferred UI work (the
+digital ID card and the gate scanner screen) is still outstanding and should
+follow, since both now have complete APIs behind them.
+

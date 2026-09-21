@@ -5,10 +5,9 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 6 substantially complete — credentials, gate fast path, vehicles
-**Next action:** finish Phase 6 with the digital ID card UI (QR render, 3D flip,
-printable PDF), then Phase 7: gates, visitor passes, entry/exit logging and
-overstay detection.
+**Current phase:** 7 complete — gates, visitor passes, movement log, overstay sweep
+**Next action:** Phase 8 (incidents, emergencies, service requests), then return
+to the deferred UI work: the digital ID card and the gate scanner screen.
 
 ---
 
