@@ -5,10 +5,10 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 5 complete — starting Phase 6 (Digital ID & vehicles)
-**Next action:** build `src/modules/credential` (Estate ID generation, signed
-rotating QR, the `access_credentials` gate fast path) and `src/modules/vehicle`
-(registration, documents, blacklist, vehicle QR).
+**Current phase:** 6 substantially complete — credentials, gate fast path, vehicles
+**Next action:** finish Phase 6 with the digital ID card UI (QR render, 3D flip,
+printable PDF), then Phase 7: gates, visitor passes, entry/exit logging and
+overstay detection.
 
 ---
 

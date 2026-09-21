@@ -673,3 +673,105 @@ Phase 6 — Digital ID and vehicles: Estate ID generation, the signed rotating Q
 the `access_credentials` denormalised gate fast path, and vehicle registration
 with blacklisting.
 
+---
+
+## 2026-09-21 19:46 UTC — Phase 6: Gate credentials, fast path and vehicles
+
+### What was built
+
+The `access_credentials` store, the gate verification path, vehicle
+registration with blacklisting, and a benchmark that proves the latency claim
+rather than asserting it.
+
+### The gate path
+
+Ordering is the whole design:
+
+1. **Verify the signature.** Pure crypto, no I/O. A forged or corrupted scan is
+   rejected without touching the cache or the database, so someone spraying junk
+   at a gate cannot generate load. The estate is read from the token too, so a
+   cross-estate scan also costs nothing.
+2. **Check the cache.** One key lookup.
+3. **One indexed read** on `tokenHash`, with an explicit projection. No joins,
+   no populate, no second round trip.
+
+`access_credentials` is deliberately denormalised — everything the gate screen
+renders is copied in at issue time. The cost is staleness, so domain events keep
+copies in step and `syncedAt` records when each row was last reconciled, making
+drift visible rather than silent.
+
+### Decisions taken
+
+**Rows are keyed by the SHA-256 of the token, never the token.** A database dump
+yields no working passes. The token is returned exactly once at issue; a lost
+pass is reissued, not retrieved.
+
+**Blacklist is evaluated before status.** A stale cached status must never admit
+someone who has been blocked.
+
+**Only admissible credentials are cached.** Caching a denial saves nothing worth
+the risk, and a cached blacklist could outlive the block being lifted.
+
+**Every state change invalidates the cache key.** Revoking, suspending or
+blacklisting drops the entry immediately — otherwise a blocked pass keeps
+working until the TTL lapses, which is the difference between revocation taking
+effect now and in half a minute.
+
+**Vehicles register as `pending` and only receive a credential on
+verification.** Until someone has checked the papers, a vehicle has no business
+opening a gate. Blacklisting blocks the vehicle and its credential in one
+operation, because the gate reads credentials, not vehicles.
+
+**A duplicate-plate error names the plate, not the owner.** Confirming who holds
+a registration would let anyone enumerate residents by trying plates.
+
+### On measuring rather than claiming
+
+`pnpm bench:gate` seeds 5,000 credentials into a real replica set and measures
+cold, warm and forged scans:
+
+| Path | p50 | p95 | p99 | Budget |
+|---|---|---|---|---|
+| cold (database read) | 0.31 ms | 0.53 ms | 0.73 ms | 8 ms |
+| warm (cache hit) | 0.00 ms | 0.00 ms | 0.01 ms | 2 ms |
+| forged (no I/O) | 0.00 ms | 0.00 ms | 0.01 ms | 2 ms |
+
+My first budgets were 25 ms and 5 ms — roughly fifty times the observed value,
+which would catch nothing. Tightened to leave room for a slower CI machine and
+little else.
+
+More importantly, a timing budget is the wrong instrument for the failure I most
+care about. Losing the index would be catastrophic — every scan reading every
+credential in the estate — but a timing check only catches it if the collection
+happens to be large enough on the day. So the benchmark also asserts the query
+plan uses **IXSCAN**, which catches it deterministically. I verified that guard
+fails as intended by pointing it at an unindexed field and confirming it
+reported `COLLSCAN`.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 527 tests, 29 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.8 kB / 106 kB |
+| `pnpm bench:gate` | pass — IXSCAN confirmed, all budgets met |
+
+Tests assert that forged, malformed, expired and cross-estate scans each perform
+**zero database queries** (verified by spying on the model), that revocation
+takes effect on the next scan rather than on cache expiry, and that a
+blacklisted credential is refused even when its status still reads active.
+
+### Still open in Phase 6
+
+**The digital ID card UI** — QR render, the 3D flip, and the printable PDF. The
+credential and token machinery behind it is complete and tested; what remains is
+the surface. Resident credential issuance on approval is deliberately held with
+it, so the two land together rather than issuing credentials nobody can see.
+
+### Next
+
+Phase 7 — Gates, visitor passes, entry/exit logging and overstay detection.
+
