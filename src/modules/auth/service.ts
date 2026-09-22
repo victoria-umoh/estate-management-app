@@ -174,7 +174,8 @@ export class AuthService {
       );
     }
 
-    const result = await getIdentityProvider().verifyNin({
+    const provider = await getIdentityProvider();
+    const result = await provider.verifyNin({
       nin,
       firstName: user.firstName,
       lastName: user.lastName,

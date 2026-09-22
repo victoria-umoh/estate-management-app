@@ -50,7 +50,7 @@ export async function beginIdempotentRequest(scope: {
   idempotencyKey: string;
   fingerprint: string;
 }): Promise<IdempotencyOutcome> {
-  const cache = getCache();
+  const cache = await getCache();
   const cacheId = key(scope);
 
   const existing = await cache.get<IdempotencyRecord>(cacheId);
@@ -87,7 +87,7 @@ export async function completeIdempotentRequest(
   scope: { userId: string; route: string; idempotencyKey: string; fingerprint: string },
   response: { statusCode: number; body: unknown },
 ): Promise<void> {
-  await getCache().set<IdempotencyRecord>(
+  (await getCache()).set<IdempotencyRecord>(
     key(scope),
     {
       status: 'completed',
@@ -110,7 +110,7 @@ export async function releaseIdempotentRequest(scope: {
   route: string;
   idempotencyKey: string;
 }): Promise<void> {
-  await getCache().delete(key({ ...scope }));
+  (await getCache()).delete(key({ ...scope }));
 }
 
 /** Stable fingerprint of a request body. */

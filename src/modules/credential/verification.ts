@@ -75,7 +75,7 @@ export async function verifyScan(token: string, estateId: string): Promise<ScanR
   const tokenHash = hashToken(token);
 
   // --- 2. Cache --------------------------------------------------------------
-  const cache = getCache();
+  const cache = await getCache();
   const cached = await cache.get<CachedCredential>(keyFor(tokenHash));
 
   if (cached) return evaluate(cached, true);
@@ -159,11 +159,11 @@ function evaluate(entry: CachedCredential, cached: boolean): ScanResult {
  * half a minute.
  */
 export async function invalidateCachedCredential(tokenHash: string): Promise<void> {
-  await getCache().delete(keyFor(tokenHash));
+  (await getCache()).delete(keyFor(tokenHash));
 }
 
 /** Clear every cached credential for an estate. Used after a bulk change. */
 export async function invalidateEstateCache(): Promise<void> {
-  await getCache().deleteByPrefix(`${CacheNamespace.GATE_CREDENTIAL}:`);
+  (await getCache()).deleteByPrefix(`${CacheNamespace.GATE_CREDENTIAL}:`);
   log.info('gate credential cache cleared');
 }

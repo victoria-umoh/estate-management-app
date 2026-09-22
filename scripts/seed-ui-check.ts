@@ -5,7 +5,8 @@
  * so the gate scanner, the security desk and the ID card can be exercised
  * against real data rather than only compiled.
  */
-import { connectToDatabase, disconnectFromDatabase } from '@/core/db';
+import { connectToDatabase } from '@/core/db';
+import { shutdownIntegrations } from '@/integrations/shutdown';
 import { blindIndex } from '@/core/crypto';
 import { systemContext } from '@/core/tenancy';
 import { hashPassword } from '@/modules/auth';
@@ -94,7 +95,7 @@ async function main(): Promise<void> {
     ),
   );
 
-  await disconnectFromDatabase();
+  await shutdownIntegrations();
 }
 
 await main();

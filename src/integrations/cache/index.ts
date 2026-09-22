@@ -1,8 +1,6 @@
 import { config } from '@/core/config';
 import { createLogger } from '@/core/logging';
 import { MemoryCacheAdapter } from './memory-adapter';
-import type * as RedisAdapterModule from './redis-adapter';
-import type * as UpstashAdapterModule from './upstash-adapter';
 import type { CacheAdapter } from './types';
 
 export { CacheNamespace, cacheKey, type CacheAdapter, type CacheNamespaceValue } from './types';
@@ -11,6 +9,7 @@ export { MemoryCacheAdapter } from './memory-adapter';
 const log = createLogger('cache');
 
 let instance: CacheAdapter | undefined;
+let pending: Promise<CacheAdapter> | undefined;
 
 /**
  * The configured cache.
@@ -19,19 +18,33 @@ let instance: CacheAdapter | undefined;
  * does not load the other's driver — and so tests never pull in a Redis client
  * at all.
  */
-export function getCache(): CacheAdapter {
+/**
+ * The configured cache.
+ *
+ * Async because the external adapters are loaded with dynamic `import()`.
+ * `require()` would be synchronous and simpler, but it is CommonJS: it works
+ * under Next's bundler and throws under plain Node ESM, which meant every
+ * script, job and worker crashed the moment it touched Redis.
+ *
+ * The promise is cached rather than the instance, so concurrent callers during
+ * startup share one adapter instead of racing to construct several.
+ */
+export function getCache(): Promise<CacheAdapter> {
+  pending ??= build();
+  return pending;
+}
+
+async function build(): Promise<CacheAdapter> {
   if (instance) return instance;
 
   switch (config.cache.driver) {
     case 'ioredis': {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { RedisCacheAdapter } = require('./redis-adapter') as typeof RedisAdapterModule;
+      const { RedisCacheAdapter } = await import('./redis-adapter');
       instance = new RedisCacheAdapter(config.cache.redisUrl!);
       break;
     }
     case 'upstash': {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { UpstashCacheAdapter } = require('./upstash-adapter') as typeof UpstashAdapterModule;
+      const { UpstashCacheAdapter } = await import('./upstash-adapter');
       instance = new UpstashCacheAdapter(config.cache.upstashUrl!, config.cache.upstashToken!);
       break;
     }
@@ -46,4 +59,5 @@ export function getCache(): CacheAdapter {
 /** Test seam — replace the adapter and reset between suites. */
 export function setCache(adapter: CacheAdapter | undefined): void {
   instance = adapter;
+  pending = adapter ? Promise.resolve(adapter) : undefined;
 }

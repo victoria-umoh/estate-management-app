@@ -10,17 +10,21 @@ export type {
 export { isValidNinFormat } from './types';
 export { MockIdentityProvider } from './mock-provider';
 
-import type * as DojahModule from './dojah-provider';
-
 let instance: IdentityProvider | undefined;
+let pending: Promise<IdentityProvider> | undefined;
 
-export function getIdentityProvider(): IdentityProvider {
+/** Async for the same reason as the cache: dynamic import, not require(). */
+export function getIdentityProvider(): Promise<IdentityProvider> {
+  pending ??= build();
+  return pending;
+}
+
+async function build(): Promise<IdentityProvider> {
   if (instance) return instance;
 
   switch (config.identity.driver) {
     case 'dojah': {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { DojahIdentityProvider } = require('./dojah-provider') as typeof DojahModule;
+      const { DojahIdentityProvider } = await import('./dojah-provider');
       instance = new DojahIdentityProvider();
       break;
     }
@@ -38,4 +42,5 @@ export function getIdentityProvider(): IdentityProvider {
 
 export function setIdentityProvider(provider: IdentityProvider | undefined): void {
   instance = provider;
+  pending = provider ? Promise.resolve(provider) : undefined;
 }

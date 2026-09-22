@@ -10,10 +10,18 @@ export class RedisCacheAdapter implements CacheAdapter {
 
   constructor(url: string) {
     this.client = new Redis(url, {
+      // Bounded retries and a short connect timeout are what stop a stalled
+      // rate-limit check holding a request open indefinitely. They do that
+      // without the offline queue disabled.
       maxRetriesPerRequest: 3,
-      // Fail fast rather than queueing: a stalled rate-limit check must not
-      // hold a request open indefinitely.
-      enableOfflineQueue: false,
+      connectTimeout: 5_000,
+
+      // The offline queue stays ENABLED. Disabling it rejects any command
+      // issued before the TCP handshake completes — which in a short-lived
+      // process (a seeder, a job, a worker) is every command, since the first
+      // one is fired microseconds after construction. The queue buffers only
+      // until the connection is up, and the retry limit still bounds failure.
+      enableOfflineQueue: true,
       lazyConnect: false,
     });
 

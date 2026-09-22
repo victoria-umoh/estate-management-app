@@ -40,7 +40,7 @@ export async function issueOtp(purpose: OtpPurpose, subject: string): Promise<st
   const max = 10 ** config.auth.otp.length;
   const code = String(randomInt(0, max)).padStart(config.auth.otp.length, '0');
 
-  await getCache().set<OtpRecord>(
+  (await getCache()).set<OtpRecord>(
     keyFor(purpose, subject),
     { hash: hashCode(code, subject), attempts: 0, createdAt: Date.now() },
     Math.floor(config.auth.otp.ttlMs / 1000),
@@ -57,7 +57,7 @@ export async function issueOtp(purpose: OtpPurpose, subject: string): Promise<st
  * phone number.
  */
 export async function verifyOtp(purpose: OtpPurpose, subject: string, code: string): Promise<void> {
-  const cache = getCache();
+  const cache = await getCache();
   const key = keyFor(purpose, subject);
   const record = await cache.get<OtpRecord>(key);
 
@@ -93,5 +93,5 @@ export async function verifyOtp(purpose: OtpPurpose, subject: string, code: stri
 }
 
 export async function clearOtp(purpose: OtpPurpose, subject: string): Promise<void> {
-  await getCache().delete(keyFor(purpose, subject));
+  (await getCache()).delete(keyFor(purpose, subject));
 }

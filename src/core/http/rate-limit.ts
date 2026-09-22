@@ -63,8 +63,9 @@ export async function consumeRateLimit(
 
   const key = cacheKey(CacheNamespace.RATE_LIMIT, rule.bucket ?? identity.route, rule.key, subject);
 
-  const count = await getCache().increment(key, windowSeconds);
-  const ttl = (await getCache().ttl(key)) ?? windowSeconds;
+  const cache = await getCache();
+  const count = await cache.increment(key, windowSeconds);
+  const ttl = (await cache.ttl(key)) ?? windowSeconds;
 
   return {
     allowed: count <= rule.limit,

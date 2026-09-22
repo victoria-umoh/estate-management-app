@@ -7,7 +7,8 @@
  *   pnpm job:overstay
  *   pnpm tsx scripts/run-job.ts overstay-sweep
  */
-import { connectToDatabase, disconnectFromDatabase } from '@/core/db';
+import { connectToDatabase } from '@/core/db';
+import { shutdownIntegrations } from '@/integrations/shutdown';
 
 const JOBS = {
   'overstay-sweep': async () => {
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
     console.error(`${name} failed:`, error);
     process.exitCode = 1;
   } finally {
-    await disconnectFromDatabase();
+    await shutdownIntegrations();
   }
 }
 

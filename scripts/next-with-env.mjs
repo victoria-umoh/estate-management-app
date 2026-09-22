@@ -10,7 +10,7 @@
  *   node scripts/next-with-env.mjs start
  */
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { loadEnvFiles } from './env-files.mjs';
 
 const command = process.argv[2];
 if (!command) {
@@ -18,18 +18,7 @@ if (!command) {
   process.exit(1);
 }
 
-// Later files do not override values already set, matching Next's own
-// precedence: a real shell variable always wins over an env file.
-for (const file of ['.env.local', '.env']) {
-  if (existsSync(file)) {
-    try {
-      process.loadEnvFile(file);
-    } catch {
-      // A malformed env file should surface from config validation with a
-      // useful message, not as a cryptic loader crash here.
-    }
-  }
-}
+loadEnvFiles();
 
 const port = process.env.PORT ?? '3000';
 const host = process.env.HOST ?? 'localhost';
