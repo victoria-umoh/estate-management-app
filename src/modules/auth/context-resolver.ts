@@ -1,4 +1,4 @@
-import { setContextResolver } from '@/core/http';
+import { ACCESS_COOKIE, readCookie, setContextResolver } from '@/core/http';
 import { enrichLogContext, getCorrelationId } from '@/core/logging';
 import type { RequestContext } from '@/core/tenancy';
 import { verifyAccessToken } from './tokens';
@@ -22,10 +22,14 @@ import { verifyAccessToken } from './tokens';
  */
 export function registerAuthContextResolver(): void {
   setContextResolver(async (request) => {
+    // Bearer header first, for native clients and API consumers; the httpOnly
+    // cookie second, for the browser, which must never hold a token in
+    // JavaScript-reachable storage.
     const header = request.headers.get('authorization');
-    if (!header?.startsWith('Bearer ')) return null;
+    const token = header?.startsWith('Bearer ')
+      ? header.slice('Bearer '.length).trim()
+      : readCookie(request, ACCESS_COOKIE);
 
-    const token = header.slice('Bearer '.length).trim();
     if (!token) return null;
 
     // Throws AuthenticationError on an expired or forged token, which the

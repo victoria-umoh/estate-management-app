@@ -8,7 +8,12 @@
     "fast. Framer Motion, Three.js and Sonner are deliberately per-page or",
     "dynamically imported; if `shared` climbs, one of them has escaped.",
     "",
-    "Headroom is deliberately thin (~2%). Any real library is more than 5 kB",
+    "Route keys must match the build manifest exactly, INCLUDING the route group",
+    "\u2014 `/(app)/security/scan`, not `/security/scan`. A key that does not match",
+    "falls back to `default` silently, which is how a tight budget stops being",
+    "enforced without anyone noticing.",
+    "",
+    "Headroom is deliberately thin (~5%). Any real library is more than 5 kB",
     "gzipped, so a leak trips this immediately, while a React or Next patch",
     "release does not.",
     "",
@@ -17,7 +22,9 @@
   "shared": 106,
   "routes": {
     "default": 260,
-    "/security/scan": 150,
-    "/security": 180
+    "/(app)/security/scan": 135,
+    "/(app)/security": 128,
+    "/(app)/my/id": 133,
+    "/(auth)/login": 122
   }
 }

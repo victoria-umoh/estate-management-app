@@ -200,6 +200,27 @@ export class ResidentService {
     };
   }
 
+  /**
+   * The caller's own gate identity.
+   *
+   * Separate from `gateIdentity` because it additionally asserts the membership
+   * belongs to the caller. Reports a membership belonging to someone else as
+   * not found rather than forbidden, so it cannot be used to discover which ids
+   * exist.
+   */
+  async ownIdentity(context: RequestContext, membershipId: string): Promise<GateIdentity> {
+    const membership = await membershipRepository.findByIdOrFail(context, membershipId);
+
+    if (membership.userId.toHexString() !== context.userId) {
+      throw new NotFoundError('Membership');
+    }
+    if (membership.status !== 'active') {
+      throw new NotFoundError('Active membership');
+    }
+
+    return this.gateIdentity(context, membershipId);
+  }
+
   /** Approve a pending membership and issue its resident code. */
   async approve(context: RequestContext, membershipId: string): Promise<MembershipDoc> {
     assertCan(context, PERMISSIONS.RESIDENT_APPROVE);

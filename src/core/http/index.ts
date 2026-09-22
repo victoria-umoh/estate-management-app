@@ -26,3 +26,10 @@ export {
   type IdempotencyOutcome,
 } from './idempotency';
 export { setContextResolver, resolveRequestContext, type ContextResolver } from './auth-provider';
+export {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  sessionCookies,
+  clearedSessionCookies,
+  readCookie,
+} from './cookies';

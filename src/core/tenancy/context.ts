@@ -30,14 +30,28 @@ export interface RequestContext {
 }
 
 /**
+ * The actor id used by automation.
+ *
+ * A real, valid ObjectId rather than the string "system", because services
+ * legitimately construct an ObjectId from `context.userId` when recording who
+ * did something — `issuedBy`, `recordedBy`, `approvedBy`. A non-ObjectId value
+ * there crashes at the point of write, which meant every scheduled job and
+ * seeder failed the moment it touched one of those fields.
+ *
+ * All-zero is deliberately recognisable in the database, and can never collide
+ * with a generated id.
+ */
+export const SYSTEM_ACTOR_ID = '000000000000000000000000';
+
+/**
  * Context for trusted, non-request work: seeders, migrations, scheduled jobs.
  *
- * Named `system` rather than given an admin user id so that audit entries
- * written by automation are distinguishable from those written by a person.
+ * Carries the `system` role so audit entries written by automation are
+ * distinguishable from those written by a person.
  */
 export function systemContext(estateId: string, correlationId = 'system'): RequestContext {
   return {
-    userId: 'system',
+    userId: SYSTEM_ACTOR_ID,
     estateId,
     roles: ['system'],
     permissions: new Set(['*']),

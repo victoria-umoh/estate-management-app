@@ -1,6 +1,6 @@
 import { Types, type ClientSession } from 'mongoose';
 import { createLogger } from '@/core/logging';
-import type { RequestContext } from '@/core/tenancy';
+import { SYSTEM_ACTOR_ID, type RequestContext } from '@/core/tenancy';
 import { diffRecords, redactMetadata, type FieldChange } from './diff';
 import { AuditLogModel, type AuditLogDoc, type AuditOutcome } from './schema';
 
@@ -42,7 +42,8 @@ export class AuditService {
     const entry: Partial<AuditLogDoc> = {
       estateId: context.estateId ? new Types.ObjectId(context.estateId) : null,
       actorId: Types.ObjectId.isValid(context.userId) ? new Types.ObjectId(context.userId) : null,
-      actorLabel: context.userId,
+      // Kept human-readable: a row of zeros in the trail tells nobody anything.
+      actorLabel: context.userId === SYSTEM_ACTOR_ID ? 'system' : context.userId,
       actorRoles: [...context.roles],
       action: input.action,
       resource: input.resource,

@@ -5,10 +5,9 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-18
-**Current phase:** 8 complete — incidents, emergencies, service requests
-**Next action:** the deferred UI work, which is now the gap. Every backend
-domain has a tested API and no surface: the gate scanner, the digital ID card,
-and the security dashboard should be built together since they share components.
+**Current phase:** 9 complete — security & identity UI, cookie sessions
+**Next action:** the resident portal (visitor passes, household, vehicles,
+payments) and the finance module. The estate admin screens follow.
 
 ---
 

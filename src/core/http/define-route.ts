@@ -192,6 +192,21 @@ export function defineRoute<
           request,
         });
 
+        // A handler may return a NextResponse directly when it needs to set
+        // headers the envelope cannot carry — session cookies, most notably.
+        // It is then responsible for its own shape.
+        if (result instanceof NextResponse) {
+          result.headers.set('x-correlation-id', correlationId);
+          for (const [key, value] of Object.entries(limitHeaders)) {
+            result.headers.set(key, value);
+          }
+          log.info(
+            { status: result.status, durationMs: Date.now() - startedAt },
+            'request completed',
+          );
+          return result;
+        }
+
         const status = definition.status ?? (request.method === 'POST' ? 201 : 200);
         const payload = { success: true as const, data: result };
 

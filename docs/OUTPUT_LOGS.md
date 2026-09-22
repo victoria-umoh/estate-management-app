@@ -947,3 +947,123 @@ separate design passes over the same material.
 
 The consolidated security and identity UI.
 
+---
+
+## 2026-09-22 02:10 UTC — Phase 9: Security & identity UI
+
+### What was built
+
+The gate scanner, the security desk, the digital ID card, a login page, the
+authenticated shell — and, underneath all of it, a safe way for a browser to
+hold a session.
+
+### Cookie sessions
+
+Before any screen could be built, the web client had no safe place to keep a
+credential. Login now returns tokens in the body *and* sets them as httpOnly
+cookies when the caller identifies as `web`; the browser client never sees a
+token at all. Native clients keep using the body, unchanged.
+
+Two details worth recording:
+
+- **The refresh cookie is scoped to `/api/v1/auth`.** A refresh token has no
+  business being attached to every API request it does not authenticate.
+- **`SameSite=Lax`, not `Strict`.** Strict would drop the session on any inbound
+  link — including the one in a visitor-pass email — and sign the resident out
+  for no security gain, since every mutating endpoint takes a JSON POST that a
+  cross-site form cannot produce.
+
+The route kernel now passes a `NextResponse` through untouched when a handler
+returns one, which is how cookies get attached without loosening the envelope
+for everything else.
+
+### Decisions taken
+
+**The gate scanner carries nothing decorative.** No 3D, no route animation. The
+QR decoder (~200 kB) is dynamically imported so only that screen pays for it.
+Gate and direction are chosen once and remembered, because an officer works one
+gate for a whole shift. Camera failure falls through to code entry and plate
+lookup rather than stopping the queue.
+
+**The scan result is designed to be read in under a second**, at arm's length,
+in sunlight. Colour, icon and a short verb all carry the same message, because
+an officer glancing up may resolve only one of them. A blacklist gets a solid
+fill rather than a tint: "pass expired" and "do not admit this person" call for
+very different responses and must not look alike.
+
+**The ID card flip is a CSS 3D transform, not a WebGL scene.** Loading a
+renderer to turn a rectangle over would cost hundreds of kilobytes for something
+the compositor does natively — on a card opened at a gate, on a phone, on a poor
+connection.
+
+**The security desk is ordered by urgency, not by module**: emergencies, then
+overstays, then who is inside, then the log. It polls rather than holding a
+socket, because a gate tablet drops its connection regularly and a poll that
+silently resumes beats reconnection logic nobody will watch. A failed poll never
+wipes a screen the officer is already reading.
+
+### Problems found and fixed
+
+1. **`systemContext` used the string `'system'` as a user id.** Services that
+   record an actor — `issuedBy`, `recordedBy` — construct an ObjectId from it
+   and crashed. This broke *every* job and seeder the moment it touched one of
+   those fields. Now a real sentinel ObjectId, with the audit trail still
+   printing "system" so the log stays readable.
+
+2. **The tsx scripts never loaded `.env.local`.** `pnpm seed`, `pnpm job:*` and
+   `pnpm bench:gate` would all have failed config validation with a message that
+   reads like missing configuration rather than a missing loader. Fixed with a
+   preload module applied to every tsx script.
+
+3. **The tight gate bundle budget was never being enforced.** My budget keys
+   were `/security/scan`, but the build manifest uses `/(app)/security/scan`, so
+   every route silently fell through to the 260 kB default. Keys corrected and
+   the file now says so, because a budget that looks configured and is not is
+   worse than none.
+
+4. The ID card route imported a repository directly; the layering rule caught
+   it. Fixed by adding `residentService.ownIdentity`, which asserts the
+   membership belongs to the caller and reports someone else's as *not found*
+   rather than forbidden — so it cannot be used to discover which ids exist.
+
+### On testing the UI
+
+Compilation proves nothing about whether an officer can admit a visitor.
+`scripts/ui-walkthrough.mjs` drives a real browser against a real database:
+
+| Check | Result |
+|---|---|
+| Signs in and reaches the dashboard | pass |
+| Sets an httpOnly session cookie | pass |
+| Stores no token in browser storage | pass |
+| Gate scanner loads | pass |
+| Admits a valid visitor code | pass |
+| Shows the visitor name | pass |
+| Refuses an unknown code | pass |
+| Security desk shows the visitor inside | pass |
+| Security desk shows gate activity | pass |
+| No horizontal overflow at 320px | pass |
+| No horizontal overflow at 820px | pass |
+
+Two things that looked like product bugs were not. A chairman could not operate
+the gate — correct, since `gate.operate` belongs to the security officer role;
+the seed was assigning the wrong role. And a second run refused to admit an
+already-admitted visitor — also correct; the harness was reusing a seed. It now
+seeds inside the run.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm lint` | pass |
+| `pnpm test` | pass — 595 tests, 31 files |
+| `pnpm build` | pass |
+| `pnpm budget` | pass — shared 103.9 kB / 106 kB; scan 127.2 / 135 kB |
+| `scripts/ui-walkthrough.mjs` | pass — 11 checks |
+
+### Next
+
+The resident portal — visitor passes, household, vehicles, payments — and the
+finance module.
+
