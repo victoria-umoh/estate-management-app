@@ -14,17 +14,25 @@
  *
  *   pnpm db:indexes
  */
-import type { Model } from 'mongoose';
+import mongoose, { type Model } from 'mongoose';
 
 // Imported for their side effect of registering the model, then listed
 // explicitly so a new collection cannot be forgotten silently.
 import { AccessCredentialModel } from '@/modules/credential/schema';
+import { AccountTokenModel } from '@/modules/auth/account-token.schema';
 import { AnnouncementModel } from '@/modules/announcement';
 import { AuditLogModel } from '@/modules/audit';
 import { ChangeRequestModel } from '@/modules/change-request';
 import { DependantModel } from '@/modules/household';
 import { EmergencyModel } from '@/modules/emergency/schema';
 import { EstateModel } from '@/modules/estate';
+import {
+  FeeCategoryModel,
+  InvoiceModel,
+  PaymentModel,
+  WebhookEventModel,
+} from '@/modules/finance/schema';
+import { LedgerEntryModel } from '@/modules/finance/ledger.schema';
 import { ExitPassModel } from '@/modules/exit-pass/schema';
 import { GateModel } from '@/modules/gate/schema';
 import { IncidentCommentModel, IncidentModel } from '@/modules/incident';
@@ -66,7 +74,33 @@ const MODELS: Array<Model<any>> = [
   NotificationPreferenceModel,
   AnnouncementModel,
   AuditLogModel,
+  AccountTokenModel,
+  FeeCategoryModel,
+  InvoiceModel,
+  PaymentModel,
+  WebhookEventModel,
+  LedgerEntryModel,
 ];
+
+/**
+ * Fail if a registered model is missing from the list above.
+ *
+ * The list is explicit so a reviewer can see what gets indexed — but "listed
+ * explicitly so a new collection cannot be forgotten silently" is only true if
+ * something checks. It was not checked, and the entire finance module was
+ * omitted: seven unique constraints existed in the schemas and in no database.
+ * Among them the one the payment webhook's idempotency rests on, so a duplicate
+ * delivery could have been credited twice in production while every test
+ * passed, because the test harness syncs its models directly.
+ *
+ * Mongoose registers a model on import, and every model in this list is
+ * imported above, so anything registered and absent here is an omission.
+ */
+function assertEveryModelListed(): string[] {
+  const listed = new Set(MODELS.map((model) => model.modelName));
+
+  return Object.keys(mongoose.models).filter((name) => !listed.has(name));
+}
 
 /**
  * Build every index, returning a summary.
@@ -82,6 +116,18 @@ export async function syncIndexes(options: { quiet?: boolean } = {}): Promise<{
   let indexes = 0;
   let unique = 0;
   const failures: string[] = [];
+
+  const unlisted = assertEveryModelListed();
+  if (unlisted.length > 0) {
+    // Loud, and a failure: a collection whose indexes are never built is a
+    // collection whose unique constraints do not exist.
+    for (const name of unlisted) {
+      if (!options.quiet) {
+        console.error(`  FAIL  ${name.padEnd(24)} registered but not in the sync list`);
+      }
+      failures.push(name);
+    }
+  }
 
   for (const model of MODELS) {
     try {

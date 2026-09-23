@@ -136,6 +136,9 @@ visitorPassSchema.index(
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 visitorPassSchema.index({ estateId: 1, hostMembershipId: 1, createdAt: -1 });
+// The resident's own list, ordered by when the visit is expected rather than
+// when the pass was created — which is the ordering that screen uses.
+visitorPassSchema.index({ estateId: 1, hostMembershipId: 1, expectedArrival: -1 });
 visitorPassSchema.index({ estateId: 1, status: 1, expectedArrival: 1 });
 visitorPassSchema.index({ estateId: 1, vehiclePlateNormalised: 1 });
 

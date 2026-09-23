@@ -118,7 +118,10 @@ propertySchema.index(
   { estateId: 1, unitNumber: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
-propertySchema.index({ estateId: 1, occupancyStatus: 1 });
+// Carries the list's sort keys, not just its filter. Without them the planner
+// finds the rows by index and then sorts them in memory, which fails outright
+// past 32MB — a failure that only appears on a large estate.
+propertySchema.index({ estateId: 1, occupancyStatus: 1, street: 1, unitNumber: 1 });
 propertySchema.index({ estateId: 1, ownerId: 1 });
 propertySchema.index({ estateId: 1, street: 1, block: 1 });
 

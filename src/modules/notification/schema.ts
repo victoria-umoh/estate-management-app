@@ -115,8 +115,10 @@ const notificationSchema = new Schema<NotificationDoc>(
 notificationSchema.index({ estateId: 1, recipientMembershipId: 1, createdAt: -1 });
 // The unread badge. Partial, because read notifications vastly outnumber unread
 // ones and there is no reason to index them for this query.
+// `createdAt` is part of the key because the unread list is also sorted by it;
+// without it the planner sorts the matches in memory.
 notificationSchema.index(
-  { estateId: 1, recipientMembershipId: 1, readAt: 1 },
+  { estateId: 1, recipientMembershipId: 1, readAt: 1, createdAt: -1 },
   { partialFilterExpression: { readAt: null } },
 );
 

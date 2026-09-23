@@ -1,6 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000';
+/**
+ * Matches the dev server's default port.
+ *
+ * It pointed at 3000 while `pnpm dev` reads PORT from .env and runs on 3800, so
+ * every run started a second server rather than reusing the one already up —
+ * and two Next servers sharing one .next directory destroy each other's build
+ * output.
+ */
+const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3800}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
