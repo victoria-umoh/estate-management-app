@@ -222,7 +222,7 @@ export function Pricing() {
           <div className="border-border overflow-x-auto rounded-xl border">
             <table className="w-full min-w-[34rem] border-collapse text-sm">
               <caption className="sr-only">
-                Features and limits included in each EstateOS plan
+                Features and limits included in each PrimeEstate plan
               </caption>
               <thead>
                 <tr className="border-border bg-muted/60 border-b">

@@ -8,7 +8,7 @@ describe('TOTP enrolment', () => {
     const enrollment = createTotpEnrollment('ada@example.com');
 
     expect(enrollment.otpauthUrl).toContain('otpauth://totp/');
-    expect(enrollment.otpauthUrl).toContain('EstateOS');
+    expect(enrollment.otpauthUrl).toContain('PrimeEstate');
     // The seed is password-equivalent — anyone holding it can mint codes
     // forever — so it must not be stored in the clear.
     expect(JSON.stringify(enrollment.secret)).not.toContain(enrollment.plainSecret);

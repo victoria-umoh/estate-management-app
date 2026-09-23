@@ -181,7 +181,7 @@ async function main() {
 
   console.log('\nPublic pages (no session)');
   for (const [path, expected] of [
-    ['/', 'EstateOS'],
+    ['/', 'PrimeEstate'],
     ['/pricing', 'Professional'],
     ['/login', 'ign in'],
   ]) {

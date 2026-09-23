@@ -27,7 +27,7 @@ export function Hero() {
           </h1>
 
           <p className="text-muted-foreground mt-5 max-w-prose text-base text-pretty sm:text-lg">
-            EstateOS keeps one verified register of residents, households and vehicles, checks every
+            PrimeEstate keeps one verified register of residents, households and vehicles, checks every
             visitor at the gate against it, records incidents as they happen, and bills dues with a
             ledger that reconciles. Security officers work it on a tablet; residents use their
             phones.

@@ -9,8 +9,8 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export const metadata: Metadata = {
   title: {
-    default: 'EstateOS — Estate & Community Management',
-    template: '%s · EstateOS',
+    default: 'PrimeEstate — Estate & Community Management',
+    template: '%s · PrimeEstate',
   },
   description:
     'Verified residents, gate security, visitor passes, dues and community operations for modern estates.',

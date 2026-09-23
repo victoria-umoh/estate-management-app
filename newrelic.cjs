@@ -11,7 +11,7 @@
 'use strict';
 
 exports.config = {
-  app_name: [process.env.NEW_RELIC_APP_NAME || 'EstateOS'],
+  app_name: [process.env.NEW_RELIC_APP_NAME || 'PrimeEstate'],
   license_key: process.env.NEW_RELIC_LICENSE_KEY,
   agent_enabled: process.env.NEW_RELIC_ENABLED === 'true',
 

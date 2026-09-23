@@ -149,7 +149,7 @@ function SidebarContent({
         <div className="bg-primary text-primary-foreground grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold">
           E
         </div>
-        <span className="truncate font-semibold">EstateOS</span>
+        <span className="truncate font-semibold">PrimeEstate</span>
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto p-3" aria-label="Main">

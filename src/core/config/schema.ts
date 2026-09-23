@@ -38,7 +38,7 @@ export const envSchema = z
     PORT: port.default(3000),
     HOST: z.string().default('localhost'),
     APP_URL: z.string().url(),
-    APP_NAME: z.string().min(1).default('EstateOS'),
+    APP_NAME: z.string().min(1).default('PrimeEstate'),
     APP_SUPPORT_EMAIL: z.string().email().default('support@example.com'),
     CORS_ALLOWED_ORIGINS: z
       .string()
@@ -72,7 +72,7 @@ export const envSchema = z
     OTP_LENGTH: z.coerce.number().int().min(4).max(10).default(6),
     OTP_TTL: duration('OTP_TTL').default('10m'),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
-    TOTP_ISSUER: z.string().min(1).default('EstateOS'),
+    TOTP_ISSUER: z.string().min(1).default('PrimeEstate'),
     ARGON2_MEMORY_COST: z.coerce.number().int().positive().default(19_456),
     ARGON2_TIME_COST: z.coerce.number().int().positive().default(2),
     ARGON2_PARALLELISM: z.coerce.number().int().positive().default(1),
@@ -124,7 +124,7 @@ export const envSchema = z
     // --- Email -------------------------------------------------------------
     EMAIL_DRIVER: z.enum(['console', 'resend', 'sendgrid', 'smtp']).default('console'),
     EMAIL_FROM_ADDRESS: z.string().email().default('no-reply@example.com'),
-    EMAIL_FROM_NAME: z.string().default('EstateOS'),
+    EMAIL_FROM_NAME: z.string().default('PrimeEstate'),
     RESEND_API_KEY: z.string().optional(),
     SENDGRID_API_KEY: z.string().optional(),
     SMTP_HOST: z.string().optional(),
@@ -135,7 +135,7 @@ export const envSchema = z
 
     // --- SMS ---------------------------------------------------------------
     SMS_DRIVER: z.enum(['console', 'termii', 'twilio']).default('console'),
-    SMS_SENDER_ID: z.string().default('EstateOS'),
+    SMS_SENDER_ID: z.string().default('PrimeEstate'),
     TERMII_API_KEY: z.string().optional(),
     TERMII_BASE_URL: z.string().url().default('https://api.ng.termii.com'),
     TERMII_CHANNEL: z.enum(['dnd', 'generic', 'whatsapp']).default('dnd'),
@@ -183,7 +183,7 @@ export const envSchema = z
     SENTRY_REPLAYS_SESSION_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
     SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
     NEW_RELIC_LICENSE_KEY: z.string().optional(),
-    NEW_RELIC_APP_NAME: z.string().default('EstateOS'),
+    NEW_RELIC_APP_NAME: z.string().default('PrimeEstate'),
     NEW_RELIC_ENABLED: booleanish.default('false'),
     NEW_RELIC_HIGH_SECURITY: booleanish.default('false'),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),

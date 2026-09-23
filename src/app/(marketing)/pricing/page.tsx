@@ -4,7 +4,7 @@ import { Pricing } from '@/components/marketing/pricing';
 export const metadata: Metadata = {
   title: 'Pricing',
   description:
-    'EstateOS pricing: per unit, per month, billed monthly or yearly. 30 days of Professional free, no card required.',
+    'PrimeEstate pricing: per unit, per month, billed monthly or yearly. 30 days of Professional free, no card required.',
 };
 
 export default function PricingPage() {

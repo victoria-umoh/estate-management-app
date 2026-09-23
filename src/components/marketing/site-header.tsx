@@ -29,7 +29,7 @@ export function SiteHeader() {
           className="mr-auto flex items-center gap-2 rounded-md text-base font-semibold tracking-tight"
         >
           <ShieldCheck className="text-primary size-5" aria-hidden />
-          EstateOS
+          PrimeEstate
         </Link>
 
         <nav aria-label="Main" className="flex items-center gap-1">
