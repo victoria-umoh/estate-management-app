@@ -121,6 +121,12 @@ export interface RouteDefinition<TBody, TQuery, TParams, TResult> {
 
 type NextRouteContext<TParams> = { params: Promise<TParams> };
 
+/** What Next calls: a request, and (on a dynamic segment) its params. */
+type RouteHandler<TParams> = (
+  request: Request,
+  routeContext?: NextRouteContext<TParams>,
+) => Promise<NextResponse>;
+
 /**
  * Declare an API route.
  *
@@ -138,7 +144,7 @@ export function defineRoute<
   TParams = undefined,
   TResult = unknown,
 >(definition: RouteDefinition<TBody, TQuery, TParams, TResult>) {
-  return async function routeHandler(
+  const routeHandler = async function routeHandler(
     request: Request,
     routeContext?: NextRouteContext<TParams>,
   ): Promise<NextResponse> {
@@ -318,6 +324,28 @@ export function defineRoute<
         );
       }
     });
+  };
+
+  /**
+   * The declaration, hung off the handler.
+   *
+   * This is what lets the OpenAPI generator describe the API from the routes
+   * themselves rather than from a document someone has to remember to update.
+   * A hand-maintained spec drifts from the server within a release, and the
+   * native clients this API was built for would be reading the drift.
+   *
+   * Non-enumerable, so it does not change what Next sees on the module.
+   */
+  Object.defineProperty(routeHandler, 'routeDefinition', {
+    value: definition,
+    enumerable: false,
+  });
+
+  // Annotated rather than `typeof routeHandler`, which would make the const's
+  // type depend on the expression returning it — TypeScript resolves that
+  // circularity by giving up, and the handler stops being callable.
+  return routeHandler as RouteHandler<TParams> & {
+    routeDefinition: RouteDefinition<TBody, TQuery, TParams, TResult>;
   };
 }
 
