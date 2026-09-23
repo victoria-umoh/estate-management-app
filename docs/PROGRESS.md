@@ -5,7 +5,7 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-23
-**Current phase:** 12 complete — notifications, passes, search, SaaS, marketing
+**Current phase:** 13 complete — the roadmap is delivered
 
 **The bar changed this phase.** A phase is no longer done when the service works
 and the tests are green. It is done when the screen loads, signed in, as the
@@ -13,23 +13,26 @@ role that uses it — verified by `pnpm smoke`, which drives every screen and
 endpoint over HTTP as all three roles. Ten phases were reported complete under
 the old bar while 18 of 24 navigation links went to screens that did not exist.
 
-**Next action:** wire the four deferred auth flows to the send path that now
-exists — email verification, password reset, tenant invitations, and the dunning
-notification. The templates and the transport are built; the auth service and
-the dunning job simply do not call them yet.
+**Next action:** hardening. Playwright end-to-end over the six spec workflows
+is the main gap — `pnpm smoke` proves screens load and permissions hold, but
+nothing drives a full journey through a browser. Then a security review pass and
+an index/performance audit.
 
-**Then:** reports and exports (CSV/Excel/PDF, scheduling), the super-admin
-platform console, and hardening — OpenAPI spec, Playwright e2e over the six
-spec workflows, and the deployment docs.
+**Known gaps, all deliberate:**
+- Report scheduling is not built. The permission, the jobs pattern and the send
+  path all exist; what is missing is attachment support in the notification
+  service, and an actor identity for the audit entry that names the person who
+  set the schedule up rather than "system".
+- Email verification is not enforced at login — membership approval already
+  gates everything. Making it blocking is a product decision.
+- Several screens have not been seen rendering in a browser. `pnpm smoke`
+  asserts they return 200 with their own content server-side; it cannot assert
+  they look right or that their interactions work.
 
-**Still missing UI:** notifications centre, announcements, exit/temporary
-passes, subscription/billing portal. All four have working, tested APIs and no
-screens; their nav entries remain flagged `planned` until they do.
-
-**Resolved this session:** incidents are now narrowed to the caller
-(`incident.viewAll` gates the estate-wide read). The resident directory stays
-open by decision, guarded by a smoke check that fails if the projection ever
-grows a contact field.
+**Open for the owner:**
+- The resident directory stays open by decision, guarded by a smoke check that
+  fails if the projection ever grows a contact field.
+- Chairmen cannot revoke temporary passes, by decision (separation of duties).
 
 ---
 

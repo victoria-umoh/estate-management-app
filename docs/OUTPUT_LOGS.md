@@ -1410,3 +1410,95 @@ Stage explicitly when running agents concurrently.
 
 typecheck · lint · **738 tests** · build · bundle budget · **`pnpm smoke` all
 checks passed**.
+
+---
+
+## 2026-09-23T17:30Z — Phase 13: The remaining roadmap
+
+Seven subagents under strict file ownership, plus work done directly.
+
+| | Start of session | Now |
+|---|---|---|
+| App screens | 23 | **30** |
+| API routes | 90 | **102 paths, 134 operations** |
+| Permissions gating nothing | 8 of 121 | **4 of 122** |
+| Tests | 738 | **808** |
+| Shared First Load JS | 104.1 kB | **103.8 kB** |
+
+The four still-unenforced permissions are soft-delete variants; this system does
+not hard-delete anything.
+
+### Delivered
+
+**The four deferred flows** — email verification, password reset, tenant
+invitation, dunning notification. One single-use token collection: SHA-256 only,
+expiry inside the lookup filter, consumption as a single conditional update so
+two concurrent redemptions cannot both win.
+
+**Reports and exports** — five reports, seventeen tables, RFC-4180 CSV with BOM,
+CRLF, quoting and formula neutralisation. Capped at 10,000 rows, with the cap
+stated in headers *and* written as the file's last line so a short file is never
+mistaken for a complete one.
+
+**Global search** — residents by name, code, phone and NIN blind index; plates,
+pass codes, tickets, references, invoices, payments, properties. ⌘K palette.
+
+**Platform console** — cross-tenant estate list, MRR, suspend and restore.
+
+**OpenAPI 3.1**, generated from the route declarations themselves.
+
+**Seven screens** — notifications with preferences, announcements (resident and
+admin), exit passes, security passes desk, billing portal, reports, platform.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| Reset and resend pad to a uniform latency floor | The gap between "look up nothing" and "write a token and enqueue an email" is the enumeration oracle, not the response body. |
+| Password reset revokes every session | Someone resetting may be doing it because they were compromised. |
+| An invitation carries estate, property and category in the token | No request field can redirect the account. Acceptance lands on awaiting-approval: an invitation gets you in the door, not past the administrator. |
+| Export is a separate permission from view, checked in the service | Exporting takes data out of the audited system. Checked in the service rather than declared on the route so a **refusal** is audited too — a 403 at the route fires before anything is written. |
+| No identity data in any export, at any permission | Someone who needs it uses the audited single-record endpoint, not a spreadsheet that ends up in an inbox. |
+| Search mirrors each list endpoint's permission exactly | Search must never be a wider door than the screen it links to. |
+| The platform console never touches `BaseRepository` | Its job is to make a cross-tenant query impossible. Going direct, in one named module, keeps an unscoped query visible in review rather than accidental. |
+| Emergency and security notifications render as locked, not as toggles | The service ignores an attempt to mute them, and a control that lies about what it does is worse than no control. |
+| `nav:check` gates the build | The app once offered 24 links against 6 screens and nothing caught it: the tests exercised services, and a menu entry imports nothing. |
+
+### Fixed
+
+**Archiving an announcement also soft-deleted it**, putting it beyond the
+repository's default filter — an administrator who archived a notice could never
+find it again, making archive indistinguishable from delete.
+
+**An exit-pass item's `estimatedValue` had no documented unit** — a bare
+`number` in a system where all money is integer minor units, so each caller
+guessed.
+
+**Notification templates linked into `/portal/...`**, an app that is not this
+one. Following an announcement email would have 404'd.
+
+### Two bugs I introduced
+
+Exposing the route declaration on the kernel, I deleted its `return` statement:
+every handler became `undefined` at runtime. The first fix then used
+`typeof routeHandler` in the return type, creating circular inference that made
+handlers non-callable. The kernel's own tests caught both — the second time this
+session that a change to `defineRoute` was caught by a test rather than by
+review.
+
+### Process notes
+
+`next build` and `next dev` write incompatible output to the same `.next`.
+Running one while the other is up leaves every route returning 500 with
+`routes-manifest.json` missing. Three agents lost time to this independently
+before it was understood. `pnpm clean` and `pnpm dev:clean` now exist and
+`docs/DEPLOYMENT.md` says so.
+
+Staging with `git add -A` while agents are mid-write sweeps their files into
+unrelated commits. Two commits earlier in this project carry work their messages
+do not describe; this phase staged explicitly.
+
+### Gates
+
+typecheck · lint · **808 tests** · build · nav coverage (28/28) · bundle budget ·
+**`pnpm smoke` all checks passed**.

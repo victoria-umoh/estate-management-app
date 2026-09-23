@@ -268,7 +268,8 @@ function PassRow({ pass, onCancel }: { pass: ExitPassSummary; onCancel: () => Pr
           </p>
           <p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
             {pass.itemCount} {pass.itemCount === 1 ? 'line' : 'lines'} · {pass.totalQuantity}{' '}
-            {pass.totalQuantity === 1 ? 'item' : 'items'} · valid until {formatWhen(pass.validUntil)}
+            {pass.totalQuantity === 1 ? 'item' : 'items'} · valid until{' '}
+            {formatWhen(pass.validUntil)}
           </p>
         </div>
 
@@ -476,9 +477,7 @@ function CreatePassDialog({ onCreated }: { onCreated: (pass: CreatedPass) => voi
   const [items, setItems] = useState<ItemDraft[]>([emptyItem(0)]);
 
   function patchItem(key: number, patch: Partial<ItemDraft>) {
-    setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
-    );
+    setItems((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -560,10 +559,22 @@ function CreatePassDialog({ onCreated }: { onCreated: (pass: CreatedPass) => voi
               minLength={2}
               maxLength={120}
             />
-            <Input name="carrierPhone" label="Their phone" type="tel" maxLength={20} hint="Optional" />
+            <Input
+              name="carrierPhone"
+              label="Their phone"
+              type="tel"
+              maxLength={20}
+              hint="Optional"
+            />
           </div>
 
-          <Input name="destination" label="Where it is going" required minLength={2} maxLength={200} />
+          <Input
+            name="destination"
+            label="Where it is going"
+            required
+            minLength={2}
+            maxLength={200}
+          />
           <Input
             name="reason"
             label="Why"

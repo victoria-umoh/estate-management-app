@@ -3207,7 +3207,7 @@
                           "maxLength": 120
                         },
                         "estimatedValue": {
-                          "type": "number",
+                          "type": "integer",
                           "minimum": 0
                         }
                       },

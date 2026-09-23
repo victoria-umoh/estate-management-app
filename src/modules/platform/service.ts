@@ -78,12 +78,15 @@ export class PlatformService {
     assertCan(context, PERMISSIONS.PLATFORM_ANALYTICS_VIEW);
     assertPlatformStaff(context);
 
-    const estates = await EstateModel.find({ deletedAt: null }, {
-      status: 1,
-      planCode: 1,
-      trialEndsAt: 1,
-      subscriptionEndsAt: 1,
-    }).lean();
+    const estates = await EstateModel.find(
+      { deletedAt: null },
+      {
+        status: 1,
+        planCode: 1,
+        trialEndsAt: 1,
+        subscriptionEndsAt: 1,
+      },
+    ).lean();
 
     const [units, residents] = await Promise.all([
       PropertyModel.countDocuments({ deletedAt: null }),

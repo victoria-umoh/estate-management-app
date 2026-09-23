@@ -286,9 +286,7 @@ function Tile({
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-xl leading-none font-semibold tabular-nums">
-            {value ?? '—'}
-          </p>
+          <p className="truncate text-xl leading-none font-semibold tabular-nums">{value ?? '—'}</p>
           <p className="text-muted-foreground mt-1 truncate text-xs">{label}</p>
         </div>
       </CardContent>

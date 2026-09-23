@@ -204,7 +204,10 @@ async function main(): Promise<void> {
         tags: [tagFor(path)],
         summary: `${method} ${path}`,
         description: describe(definition, path),
-        parameters: [...pathParameters(path, definition.params), ...queryParameters(definition.query)],
+        parameters: [
+          ...pathParameters(path, definition.params),
+          ...queryParameters(definition.query),
+        ],
         responses: responses(definition, method),
       };
 
@@ -300,7 +303,9 @@ async function main(): Promise<void> {
   writeFileSync(OUTPUT, serialised);
 
   const operations = Object.values(paths).reduce((sum, item) => sum + Object.keys(item).length, 0);
-  console.log(`Wrote ${relative(ROOT, OUTPUT)}: ${Object.keys(paths).length} paths, ${operations} operations.`);
+  console.log(
+    `Wrote ${relative(ROOT, OUTPUT)}: ${Object.keys(paths).length} paths, ${operations} operations.`,
+  );
 
   if (skipped.length > 0) {
     console.log(`\nOutside the route kernel, so not described (${skipped.length}):`);

@@ -162,8 +162,8 @@ export default function BillingPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-2xl leading-none font-semibold tabular-nums">
-                    {subscription.daysRemaining}{' '}
-                    {subscription.daysRemaining === 1 ? 'day' : 'days'} of trial left
+                    {subscription.daysRemaining} {subscription.daysRemaining === 1 ? 'day' : 'days'}{' '}
+                    of trial left
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     The trial runs at Professional and ends{' '}
@@ -313,7 +313,9 @@ function PlanCard({
   const annual = units * plan.pricePerUnitMonthlyMinor * plan.annualMonthsCharged;
 
   return (
-    <Card className={cn(current && 'border-success', !current && plan.highlighted && 'border-info')}>
+    <Card
+      className={cn(current && 'border-success', !current && plan.highlighted && 'border-info')}
+    >
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
           {plan.name}

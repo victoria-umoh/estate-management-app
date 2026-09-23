@@ -82,6 +82,12 @@ first.
 
 `PORT` in `.env` sets the dev port.
 
+**Do not run `pnpm build` while `pnpm dev` is running.** They write incompatible
+output to the same `.next`, and afterwards every route returns 500 with
+`routes-manifest.json` missing. `pnpm dev:clean` clears the directory and
+restarts; `pnpm clean` just clears it. This cost three separate debugging
+detours before it was understood, so it is worth knowing up front.
+
 ---
 
 ## 4. Deploying to Vercel
