@@ -34,6 +34,7 @@ export interface ExitPassItem {
   quantity: number;
   description: string;
   identifyingMark?: string | null;
+  /** Integer minor units (kobo). */
   estimatedValue?: number | null;
 }
 

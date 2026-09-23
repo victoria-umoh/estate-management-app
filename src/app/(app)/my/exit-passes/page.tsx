@@ -32,9 +32,8 @@ import { api, ApiRequestError } from '@/lib/api/client';
  * approved, so a pending pass shows its pending state plainly rather than an
  * empty QR that looks like a scanner fault.
  *
- * `estimatedValue` has no documented unit on the API. It is read here as minor
- * units, matching every other money field in the system, so the field is
- * entered in naira and multiplied on the way out.
+ * `estimatedValue` is integer minor units, like every other money field here,
+ * so the input takes naira and multiplies on the way out.
  */
 interface ExitPassSummary {
   id: string;

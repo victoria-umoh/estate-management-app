@@ -8,7 +8,14 @@ const ItemDto = z.object({
   quantity: z.number().int().min(1).max(10_000),
   description: z.string().trim().min(2).max(200),
   identifyingMark: z.string().trim().max(120).optional(),
-  estimatedValue: z.number().min(0).optional(),
+  /**
+   * Integer minor units (kobo), as everywhere else money appears here.
+   *
+   * It was a bare `number` with no stated unit, which left each caller to guess
+   * — and a manifest that values a television at 250 when the reader expects
+   * 25000 is worse than one that omits the value.
+   */
+  estimatedValue: z.number().int().min(0).optional(),
 });
 
 /**
