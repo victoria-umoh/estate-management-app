@@ -228,6 +228,20 @@ async function main(): Promise<void> {
   });
   await vehicleService.verify(context, vehicle._id.toHexString(), 'Homeowner', '12B');
 
+  // Belongs to somebody else. A demo estate with one household's data in every
+  // collection is how four separate "any resident can read the whole estate"
+  // leaks went unnoticed: the leaky list and the correct one returned the same
+  // rows, so nothing looked wrong.
+  const chairmanCar = await vehicleService.register(context, {
+    ownerMembershipId: admin.membershipId,
+    plateNumber: 'CHR-001-LA',
+    make: 'Peugeot',
+    model: '508',
+    colour: 'Navy',
+    type: 'car',
+  });
+  await vehicleService.verify(context, chairmanCar._id.toHexString(), 'Chairman', '1A');
+
   // A blacklisted one, so the gate's strongest refusal is visible.
   const blocked = await vehicleService.register(context, {
     ownerMembershipId: resident.membershipId,
@@ -246,6 +260,16 @@ async function main(): Promise<void> {
   );
 
   // --- Visitors -------------------------------------------------------------
+  // Hosted by the chairman, so a resident reading the estate-wide list instead
+  // of their own is visible rather than indistinguishable.
+  await visitorService.createPass(context, {
+    hostMembershipId: admin.membershipId,
+    visitorName: 'Funmi Adeleke',
+    purpose: 'Committee meeting',
+    expectedArrival: new Date(Date.now() + 2 * 3_600_000),
+    expectedDeparture: new Date(Date.now() + 5 * 3_600_000),
+  });
+
   // One expected and waiting at the gate.
   const expected = await visitorService.createPass(context, {
     hostMembershipId: resident.membershipId,
@@ -288,6 +312,15 @@ async function main(): Promise<void> {
   });
 
   // --- Incident, emergency and a service request ----------------------------
+  // Reported by the chairman, so the incident narrowing has something to narrow.
+  await incidentService.report(context, admin.membershipId, {
+    category: 'property-damage',
+    severity: 'medium',
+    title: 'Clubhouse window cracked',
+    description: 'Found this morning; no sign of forced entry.',
+    location: 'Clubhouse',
+  });
+
   await incidentService.report(context, resident.membershipId, {
     category: 'suspicious-activity',
     severity: 'high',
@@ -301,6 +334,15 @@ async function main(): Promise<void> {
     type: 'medical',
     description: 'Elderly resident has fallen',
     location: '12B Palm Avenue',
+  });
+
+  // Another household's ticket, for the same reason as the car above.
+  await serviceRequestService.create(context, admin.membershipId, {
+    category: 'water',
+    priority: 'high',
+    subject: 'Burst pipe behind the clubhouse',
+    description: 'Water pooling against the wall since this morning.',
+    location: 'Clubhouse, rear',
   });
 
   await serviceRequestService.create(context, resident.membershipId, {

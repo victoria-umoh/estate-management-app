@@ -4,6 +4,7 @@ import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
 import type { PaginatedResult } from '@/core/db';
 import type { RequestContext } from '@/core/tenancy';
+import { getEmailProvider, type EmailAttachment } from '@/integrations/notifications';
 import { getQueue } from '@/integrations/queue';
 import { meService } from '@/modules/me';
 import { membershipRepository } from '@/modules/membership/repository';
@@ -147,6 +148,41 @@ export class NotificationService {
       // that must not confirm whether an address is registered, and a log line
       // is read by more people than a response body.
       log.error({ err: error, templateId: input.templateId }, 'direct notification send failed');
+      return false;
+    }
+  }
+
+  /**
+   * Send a rendered template with a file attached, directly to the provider.
+   *
+   * Deliberately bypasses the queue. A job payload is JSON, and a Buffer does
+   * not survive that round trip intact — encoding it to base64 to fit would put
+   * a multi-megabyte string in the queue for every scheduled report.
+   *
+   * Only callers already running off-request should use this: there is no
+   * retry, and the send is awaited. The scheduled-report sweep is one.
+   */
+  async sendWithAttachment<TId extends NotificationTemplateId>(input: {
+    to: string;
+    templateId: TId;
+    data: NotificationTemplateDataMap[TId];
+    attachments: EmailAttachment[];
+  }): Promise<boolean> {
+    try {
+      const template = getTemplate(input.templateId);
+      const rendered = template.render(input.data);
+
+      const provider = await getEmailProvider();
+      const result = await provider.send({
+        to: input.to,
+        subject: rendered.emailSubject,
+        text: rendered.emailText,
+        attachments: input.attachments,
+      });
+
+      return result.delivered;
+    } catch (error) {
+      log.error({ err: error, templateId: input.templateId }, 'attachment send failed');
       return false;
     }
   }

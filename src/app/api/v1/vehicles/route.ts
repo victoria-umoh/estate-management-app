@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineRoute, paginated } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
+import { meService } from '@/modules/me';
 import { vehicleRepository, vehicleService } from '@/modules/vehicle';
 
 const RegisterDto = z.object({
@@ -28,7 +29,16 @@ export const GET = defineRoute({
   }),
   handler: async (ctx, { query }) => {
     const { page, limit, ...filters } = query;
-    const result = await vehicleRepository.paginate(ctx, filters, { page, limit });
+
+    // Residents hold `vehicle.view` for their own cars. The wide read joins a
+    // plate to an owner and thence to a unit number, for the whole estate.
+    const scope = await meService.narrowUnless(
+      ctx,
+      PERMISSIONS.VEHICLE_VIEW_ALL,
+      'ownerMembershipId',
+    );
+
+    const result = await vehicleRepository.paginate(ctx, { ...filters, ...scope }, { page, limit });
 
     return paginated({
       ...result,

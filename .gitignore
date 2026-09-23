@@ -46,3 +46,6 @@ Thumbs.db
 .cursor/
 .aider*
 .gstack/
+
+# playwright saved sessions
+tests/e2e/.auth/

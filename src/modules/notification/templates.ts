@@ -96,6 +96,12 @@ export interface NotificationTemplateDataMap {
   };
 
   'announcement.published': { title: string; summary: string; announcementId: string };
+  'report.scheduled': {
+    reportTitle: string;
+    period: string;
+    ownerName: string | null;
+    rowCount: number;
+  };
 }
 
 export type NotificationTemplateId = keyof NotificationTemplateDataMap;
@@ -329,6 +335,31 @@ export const NOTIFICATION_TEMPLATES: TemplateRegistry = {
     }),
   },
 
+  'report.scheduled': {
+    id: 'report.scheduled',
+    // An administrative artefact rather than an estate notice, but 'account' is
+    // the closest existing category and adding one would mean every stored
+    // preference silently lacks it.
+    category: 'account',
+    priority: 'normal',
+    description: 'Delivers a scheduled report as a CSV attachment.',
+    render: ({ reportTitle, period, ownerName, rowCount }) => ({
+      title: `${reportTitle} — ${period}`,
+      body: `${rowCount} rows.`,
+      emailSubject: `${reportTitle} — ${period}`,
+      emailText: [
+        `${reportTitle}, covering ${period}.`,
+        '',
+        `The report is attached as a CSV: ${rowCount} rows.`,
+        '',
+        ownerName
+          ? `This is a scheduled report set up by ${ownerName}.`
+          : 'This is a scheduled report.',
+        'It contains no identity numbers.',
+      ].join('\n'),
+      smsBody: `${appName()}: ${reportTitle} is ready.`,
+    }),
+  },
   'announcement.published': {
     id: 'announcement.published',
     category: 'announcement',

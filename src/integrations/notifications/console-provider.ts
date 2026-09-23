@@ -44,7 +44,14 @@ export class ConsoleEmailProvider implements EmailProvider {
     // warn, not info: in development this is the only visible trace of a
     // verification link or a reset token, and it must not be filtered out by a
     // default log level.
-    log.warn({ to: message.to, subject: message.subject }, `EMAIL (not sent)\n${message.text}`);
+    const attached = message.attachments?.length
+      ? ` [${message.attachments.map((a) => `${a.filename} ${a.content.byteLength}B`).join(', ')}]`
+      : '';
+
+    log.warn(
+      { to: message.to, subject: message.subject },
+      `EMAIL (not sent)${attached}\n${message.text}`,
+    );
 
     return { delivered: true, providerMessageId: `console_${randomUUID()}` };
   }

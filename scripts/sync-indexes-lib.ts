@@ -40,6 +40,7 @@ import { MembershipModel } from '@/modules/membership/schema';
 import { MovementModel } from '@/modules/movement';
 import { NotificationModel, NotificationPreferenceModel } from '@/modules/notification';
 import { PropertyModel, PropertyOccupancyModel } from '@/modules/property';
+import { ReportScheduleModel } from '@/modules/report/schedule.schema';
 import { RoleModel } from '@/modules/role';
 import { ServiceRequestModel } from '@/modules/service-request';
 import { SessionModel } from '@/modules/auth';
@@ -80,6 +81,7 @@ const MODELS: Array<Model<any>> = [
   PaymentModel,
   WebhookEventModel,
   LedgerEntryModel,
+  ReportScheduleModel,
 ];
 
 /**

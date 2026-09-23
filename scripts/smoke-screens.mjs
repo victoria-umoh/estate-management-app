@@ -278,6 +278,106 @@ async function main() {
     );
   }
 
+  console.log('\nList endpoints are narrowed to the caller');
+  {
+    /**
+     * The same mistake has been made five times: a permission residents hold,
+     * also gating an estate-wide list. A unit test never caught one, because a
+     * unit test asserts the permission its author chose.
+     *
+     * So this compares what a resident sees against what an administrator sees.
+     * Equal counts on a seeded estate with more than one household means the
+     * narrowing is absent.
+     */
+    for (const [path, label] of [
+      ['/visitor-passes', 'visitor passes'],
+      ['/vehicles', 'vehicles'],
+      ['/service-requests', 'service requests'],
+    ]) {
+      const read = async (role) => {
+        const response = await fetch(`${BASE}/api/v1${path}?limit=100`, {
+          headers: { authorization: `Bearer ${sessions[role].token}` },
+        });
+        const body = await response.json().catch(() => null);
+        return Array.isArray(body?.data) ? body.data.length : -1;
+      };
+
+      const [mine, all] = [await read('resident'), await read('admin')];
+
+      report(
+        mine >= 0 && all >= 0 && mine < all,
+        `${label} narrowed`.padEnd(24),
+        `resident ${mine} of ${all}`,
+      );
+    }
+
+    // An emergency is visible to everyone by design; its operational detail is
+    // not. The caller's phone number and coordinates are the point.
+    const fields = async (role) => {
+      const body = await fetch(`${BASE}/api/v1/emergencies`, {
+        headers: { authorization: `Bearer ${sessions[role].token}` },
+      }).then((r) => r.json());
+      return Object.keys((Array.isArray(body?.data) ? body.data[0] : null) ?? {});
+    };
+
+    const residentFields = await fields('resident');
+    const leaked = ['contactPhone', 'coordinates', 'description', 'propertyId'].filter((f) =>
+      residentFields.includes(f),
+    );
+
+    report(
+      leaked.length === 0,
+      'emergency detail withheld'.padEnd(24),
+      leaked.join(', ') || `${residentFields.length} safe fields`,
+    );
+  }
+
+  console.log('\nIdentity cannot be supplied by the caller');
+  {
+    // A resident raising a panic alert in a neighbour's name would dispatch
+    // security to that neighbour's house, stamped with their property.
+    const me = await fetch(`${BASE}/api/v1/me/profile`, {
+      headers: { authorization: `Bearer ${sessions.resident.token}` },
+    }).then((r) => r.json());
+
+    const otherMembership = await fetch(`${BASE}/api/v1/me/profile`, {
+      headers: { authorization: `Bearer ${sessions.admin.token}` },
+    }).then((r) => r.json());
+
+    const created = await fetch(`${BASE}/api/v1/emergencies`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${sessions.resident.token}`,
+      },
+      body: JSON.stringify({
+        membershipId: otherMembership?.data?.membershipId,
+        type: 'medical',
+        description: 'smoke-test forgery check',
+      }),
+    }).then((r) => r.json());
+
+    if (!created?.success) {
+      report(true, 'emergency attribution'.padEnd(24), 'could not raise one to check');
+    } else {
+      const all = await fetch(`${BASE}/api/v1/emergencies`, {
+        headers: { authorization: `Bearer ${sessions.admin.token}` },
+      }).then((r) => r.json());
+
+      const mine = (Array.isArray(all?.data) ? all.data : []).find(
+        (row) => row.id === created.data.id,
+      );
+
+      report(
+        mine?.triggeredByMembershipId === me?.data?.membershipId,
+        'emergency attribution'.padEnd(24),
+        mine?.triggeredByMembershipId === me?.data?.membershipId
+          ? 'attributed to the caller'
+          : 'FORGEABLE',
+      );
+    }
+  }
+
   console.log('\nAccess tokens are short-lived');
   {
     // The context resolver performs no database lookup on the strength of this

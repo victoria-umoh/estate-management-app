@@ -3,7 +3,9 @@ import { createLogger } from '@/core/logging';
 import { ConsoleEmailProvider, ConsoleSmsProvider } from './console-provider';
 import type { EmailProvider, SmsProvider } from './types';
 
+export { MAX_ATTACHMENT_BYTES } from './types';
 export type {
+  EmailAttachment,
   DeliveryResult,
   EmailMessage,
   EmailProvider,

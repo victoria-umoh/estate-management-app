@@ -1,4 +1,5 @@
 import { NotFoundError } from '@/core/errors';
+import { can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { householdService } from '@/modules/household';
 import { membershipRepository } from '@/modules/membership/repository';
@@ -34,6 +35,38 @@ export class MeService {
 
   async membershipId(context: RequestContext): Promise<string> {
     return (await this.membership(context))._id.toHexString();
+  }
+
+  /**
+   * A filter fragment that narrows a list to the caller, unless they hold the
+   * estate-wide permission.
+   *
+   * This exists because the same mistake has now been made five times:
+   * `invoice.view`, `incident.view`, `resident.view`, `visitor.view`,
+   * `vehicle.view` — each one held by residents so their own screen works, each
+   * one also gating an estate-wide list that therefore leaked every household's
+   * data to every resident. None was caught by a unit test, because a unit test
+   * asserts the permission its author chose, and its author chose the one that
+   * looked right.
+   *
+   * Spreading the result into a filter is one line and hard to get wrong:
+   *
+   *     const scope = await meService.narrowUnless(ctx, PERMISSIONS.VISITOR_VIEW_ALL, 'hostMembershipId');
+   *     repository.paginate(ctx, { ...filters, ...scope }, ...)
+   */
+  async narrowUnless(
+    context: RequestContext,
+    widePermission: string,
+    field: string,
+  ): Promise<Record<string, unknown>> {
+    if (can(context, widePermission)) return {};
+
+    // No membership means no rows, rather than every row. Failing open here
+    // would reintroduce precisely the bug this is here to prevent.
+    const membership = await this.membership(context).catch(() => null);
+    if (!membership) return { _id: null };
+
+    return { [field]: membership._id };
   }
 
   /** Who the caller is, for the portal header and their own profile screen. */

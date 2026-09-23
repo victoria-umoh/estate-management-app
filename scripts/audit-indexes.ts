@@ -202,14 +202,38 @@ const SCAN_IS_FINE_BELOW = 50;
  * whole collections means a new unscoped index still has to be justified here.
  */
 const CROSS_ESTATE_BY_DESIGN = new Map<string, string>([
-  ['memberships.userId_1_status_1', 'login resolves a user to their memberships before any estate is chosen'],
-  ['visitor_passes.status_1_expectedDeparture_1_overstayNotifiedAt_1', 'the overstay sweep runs across every estate in one pass'],
-  ['service_requests.status_1_dueAt_1_escalatedAt_1', 'the SLA sweep runs across every estate in one pass'],
-  ['audit_logs.actorId_1_createdAt_-1', 'answers "what did this person do", which spans the estates they belong to'],
-  ['vehicles.plateNormalised_1_estateId_1', 'the gate looks a plate up before it knows which estate to scope to'],
-  ['webhook_events.provider_1_eventId_1', 'a webhook arrives carrying a provider reference and nothing else'],
-  ['accounttokens.purpose_1_userId_1_consumedAt_1', 'an emailed token is redeemed before any session exists'],
-  ['accounttokens.purpose_1_emailIndex_1_consumedAt_1', 'an emailed token is redeemed before any session exists'],
+  [
+    'memberships.userId_1_status_1',
+    'login resolves a user to their memberships before any estate is chosen',
+  ],
+  [
+    'visitor_passes.status_1_expectedDeparture_1_overstayNotifiedAt_1',
+    'the overstay sweep runs across every estate in one pass',
+  ],
+  [
+    'service_requests.status_1_dueAt_1_escalatedAt_1',
+    'the SLA sweep runs across every estate in one pass',
+  ],
+  [
+    'audit_logs.actorId_1_createdAt_-1',
+    'answers "what did this person do", which spans the estates they belong to',
+  ],
+  [
+    'vehicles.plateNormalised_1_estateId_1',
+    'the gate looks a plate up before it knows which estate to scope to',
+  ],
+  [
+    'webhook_events.provider_1_eventId_1',
+    'a webhook arrives carrying a provider reference and nothing else',
+  ],
+  [
+    'accounttokens.purpose_1_userId_1_consumedAt_1',
+    'an emailed token is redeemed before any session exists',
+  ],
+  [
+    'accounttokens.purpose_1_emailIndex_1_consumedAt_1',
+    'an emailed token is redeemed before any session exists',
+  ],
 ]);
 
 let problems = 0;
@@ -286,7 +310,8 @@ async function auditScoping(): Promise<void> {
         const reason = CROSS_ESTATE_BY_DESIGN.get(key);
 
         if (reason) report(true, key, `cross-estate: ${reason}`);
-        else report(false, key, `leads with "${first}" and is not listed as cross-estate by design`);
+        else
+          report(false, key, `leads with "${first}" and is not listed as cross-estate by design`);
       }
     }
   }

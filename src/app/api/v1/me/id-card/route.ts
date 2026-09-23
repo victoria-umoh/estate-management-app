@@ -51,5 +51,5 @@ export const POST = defineRoute({
 export const GET = defineRoute({
   permissions: [PERMISSIONS.RESIDENT_VIEW],
   query: z.object({ membershipId: z.string().min(1) }),
-  handler: async (ctx, { query }) => residentService.gateIdentity(ctx, query.membershipId),
+  handler: async (ctx, { query }) => residentService.ownIdentity(ctx, query.membershipId),
 });

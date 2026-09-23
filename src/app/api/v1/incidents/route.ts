@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineRoute, paginated } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
 import { incidentService } from '@/modules/incident';
+import { meService } from '@/modules/me';
 
 const CATEGORIES = [
   'theft',
@@ -55,7 +56,6 @@ export const GET = defineRoute({
 export const POST = defineRoute({
   permissions: [PERMISSIONS.INCIDENT_CREATE],
   body: z.object({
-    reporterMembershipId: z.string().min(1),
     category: z.enum(CATEGORIES),
     severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
     title: z.string().trim().min(4).max(160),
@@ -77,8 +77,11 @@ export const POST = defineRoute({
   }),
   rateLimit: { key: 'user', limit: 20, window: '1h', bucket: 'incident:report' },
   handler: async (ctx, { body }) => {
-    const { reporterMembershipId, ...input } = body;
-    const incident = await incidentService.report(ctx, reporterMembershipId, input);
+    // The reporter is the caller. Taking it from the body let any resident file
+    // a report in a neighbour's name, optionally naming a third party in
+    // `involvedPersons`.
+    const reporterMembershipId = await meService.membershipId(ctx);
+    const incident = await incidentService.report(ctx, reporterMembershipId, body);
 
     return {
       id: incident._id.toHexString(),

@@ -28,6 +28,10 @@ const JOBS = {
     const { subscriptionService } = await import('@/modules/subscription');
     return subscriptionService.runDunning();
   },
+  'report-schedules': async () => {
+    const { reportScheduleService } = await import('@/modules/report');
+    return reportScheduleService.runDue();
+  },
   'sla-sweep': async () => {
     const { serviceRequestService } = await import('@/modules/service-request');
     return serviceRequestService.escalateOverdue();

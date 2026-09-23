@@ -6,6 +6,7 @@ import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import { systemContext, type RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
+import { meService } from '@/modules/me';
 import {
   ServiceRequestModel,
   type ServiceCategory,
@@ -216,6 +217,14 @@ export class ServiceRequestService {
   ): Promise<PaginatedResult<ServiceRequestDoc>> {
     assertCan(context, PERMISSIONS.SERVICE_REQUEST_VIEW);
 
+    // Residents hold the narrow permission to follow their own tickets; without
+    // this the list returned every household's, subject line and all.
+    const scope = await meService.narrowUnless(
+      context,
+      PERMISSIONS.SERVICE_REQUEST_VIEW_ALL,
+      'requestedByMembershipId',
+    );
+
     const filter: Record<string, unknown> = {};
     if (filters.status) filter.status = filters.status;
     if (filters.category) filter.category = filters.category;
@@ -228,7 +237,14 @@ export class ServiceRequestService {
       filter.status = { $nin: ['resolved', 'closed'] };
     }
 
-    return serviceRequestRepository.paginate(context, filter, pagination, { sort: { dueAt: 1 } });
+    return serviceRequestRepository.paginate(
+      context,
+      // Applied last, so a client-supplied `requestedByMembershipId` cannot
+      // widen the scope back out.
+      { ...filter, ...scope },
+      pagination,
+      { sort: { dueAt: 1 } },
+    );
   }
 
   /**

@@ -62,6 +62,13 @@ export const PERMISSIONS = {
 
   // --- Vehicles -------------------------------------------------------------
   VEHICLE_VIEW: 'vehicle.view',
+  /**
+   * Every vehicle registered in the estate.
+   *
+   * Residents hold the narrow one for their own cars. The wide read joins a
+   * plate to an owner and thence to a unit number, for the whole estate.
+   */
+  VEHICLE_VIEW_ALL: 'vehicle.viewAll',
   VEHICLE_CREATE: 'vehicle.create',
   VEHICLE_UPDATE: 'vehicle.update',
   VEHICLE_VERIFY: 'vehicle.verify',
@@ -70,6 +77,15 @@ export const PERMISSIONS = {
 
   // --- Visitors -------------------------------------------------------------
   VISITOR_VIEW: 'visitor.view',
+  /**
+   * Every visitor pass in the estate.
+   *
+   * Residents hold the narrow one to manage their own guests. Without the
+   * split, any resident could read every household's visitor log — who called,
+   * why, when they arrived and whether they are still inside. That is live
+   * occupancy data: who is out, who has company, who is alone.
+   */
+  VISITOR_VIEW_ALL: 'visitor.viewAll',
   VISITOR_CREATE: 'visitor.create',
   VISITOR_APPROVE: 'visitor.approve',
   VISITOR_VERIFY: 'visitor.verify',
@@ -120,12 +136,26 @@ export const PERMISSIONS = {
 
   // --- Emergencies ----------------------------------------------------------
   EMERGENCY_VIEW: 'emergency.view',
+  /**
+   * Every emergency alert, with the caller's contact details and location.
+   *
+   * Residents may reasonably know an alert is active. They have no need for
+   * the free-text description, the GPS coordinates or the phone number of the
+   * neighbour who raised it.
+   */
+  EMERGENCY_VIEW_ALL: 'emergency.viewAll',
   EMERGENCY_CREATE: 'emergency.create',
   EMERGENCY_ACKNOWLEDGE: 'emergency.acknowledge',
   EMERGENCY_RESOLVE: 'emergency.resolve',
 
   // --- Service requests -----------------------------------------------------
   SERVICE_REQUEST_VIEW: 'serviceRequest.view',
+  /**
+   * Every service request in the estate.
+   *
+   * Residents hold the narrow one to follow their own tickets.
+   */
+  SERVICE_REQUEST_VIEW_ALL: 'serviceRequest.viewAll',
   SERVICE_REQUEST_CREATE: 'serviceRequest.create',
   SERVICE_REQUEST_ASSIGN: 'serviceRequest.assign',
   SERVICE_REQUEST_COMMENT: 'serviceRequest.comment',

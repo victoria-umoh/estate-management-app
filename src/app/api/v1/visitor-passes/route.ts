@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineRoute, paginated } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
+import { meService } from '@/modules/me';
 import { visitorPassRepository, visitorService } from '@/modules/visitor';
 
 export const GET = defineRoute({
@@ -13,9 +14,19 @@ export const GET = defineRoute({
   }),
   handler: async (ctx, { query }) => {
     const { page, limit, ...filters } = query;
+
+    // Residents hold `visitor.view` for their own guests. Without this the list
+    // returned every household's visitor log — who called, why, and whether
+    // they are still inside, which is live occupancy data.
+    const scope = await meService.narrowUnless(
+      ctx,
+      PERMISSIONS.VISITOR_VIEW_ALL,
+      'hostMembershipId',
+    );
+
     const result = await visitorPassRepository.paginate(
       ctx,
-      filters,
+      { ...filters, ...scope },
       { page, limit },
       {
         sort: { createdAt: -1 },

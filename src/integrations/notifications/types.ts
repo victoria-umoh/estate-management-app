@@ -20,7 +20,25 @@ export interface EmailMessage {
   replyTo?: string;
   /** Echoed back by the provider's webhooks, when it has them. */
   tags?: Record<string, string>;
+  /**
+   * Files to attach.
+   *
+   * Bounded deliberately: providers reject large payloads, and a scheduled
+   * report that silently fails to send is worse than one that refuses to be
+   * scheduled. The caller checks the size; this type just carries it.
+   */
+  attachments?: EmailAttachment[];
 }
+
+export interface EmailAttachment {
+  filename: string;
+  /** Raw bytes. Base64-encoded by the adapter, since providers differ. */
+  content: Buffer;
+  contentType: string;
+}
+
+/** What a provider will accept in one message, across all attachments. */
+export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
 export interface SmsMessage {
   /** E.164. Providers differ on leading `+`; each adapter normalises its own. */

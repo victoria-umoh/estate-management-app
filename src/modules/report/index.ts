@@ -18,3 +18,14 @@ export {
 } from './types';
 export { tableToCsv, formatCell, exportFilename } from './csv';
 export { ReportQuery, ReportExportQuery, ReportTypeParam, resolveRange } from './dto';
+export {
+  reportScheduleService,
+  ReportScheduleService,
+  reportScheduleRepository,
+  type CreateScheduleInput,
+} from './schedule.service';
+export {
+  ReportScheduleModel,
+  type ReportScheduleDoc,
+  type ScheduleCadence,
+} from './schedule.schema';
