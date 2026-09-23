@@ -4,8 +4,15 @@ import type { z } from 'zod';
 import { config } from '@/core/config';
 import { connectToDatabase } from '@/core/db';
 import {
+  assertFeature,
+  entitlementsFor,
+  type Entitlements,
+  type Feature,
+} from '@/core/entitlements';
+import {
   AuthenticationError,
   AuthorizationError,
+  PlanRestrictionError,
   ValidationError,
   normalizeError,
   serializeError,
@@ -23,6 +30,27 @@ import {
 import { enforceRateLimit, rateLimitHeaders, type RateLimitRule } from './rate-limit';
 
 const log = createLogger('http');
+
+/**
+ * The estate's entitlements.
+ *
+ * Loaded by dynamic import so `core` keeps no compile-time dependency on
+ * `modules` — the same reason the auth resolver bootstraps that way.
+ */
+function loadEntitlements(estateId: string): Promise<Entitlements> {
+  return entitlementsFor(estateId, async () => {
+    const { estateRepository } = await import('@/modules/estate');
+    const estate = await estateRepository.findById(estateId);
+
+    return estate
+      ? {
+          status: estate.status,
+          planCode: estate.planCode ?? null,
+          trialEndsAt: estate.trialEndsAt ?? null,
+        }
+      : null;
+  });
+}
 
 /**
  * Ensure runtime seams are wired before the first request is handled.
@@ -62,6 +90,24 @@ export interface RouteDefinition<TBody, TQuery, TParams, TResult> {
   body?: z.ZodType<TBody, z.ZodTypeDef, unknown>;
   query?: z.ZodType<TQuery, z.ZodTypeDef, unknown>;
   params?: z.ZodType<TParams, z.ZodTypeDef, unknown>;
+  /**
+   * Plan features this route requires.
+   *
+   * Declared alongside the route that needs it, while the feature is being
+   * built and the author knows which plan it belongs to. Retrofitting gating
+   * across every route at once is how one gets missed, and a missed check is a
+   * paid feature served free — with no test to catch it, because nobody writes
+   * a test for a check they forgot to add.
+   */
+  features?: Feature[];
+  /**
+   * Refuse this route while the estate is in grace or suspended.
+   *
+   * Set on anything that writes. Reads stay open deliberately: an estate that
+   * forgets to pay must not lose the gate, because residents queuing at a
+   * barrier that will not open is a safety problem, not a billing one.
+   */
+  requiresActiveSubscription?: boolean;
   rateLimit?: RateLimitRule;
   /** Honour the `Idempotency-Key` header. Use on anything that moves money. */
   idempotent?: boolean;
@@ -138,6 +184,24 @@ export function defineRoute<
             // Logged so repeated denials are visible as a probing signal.
             log.warn({ permission, userId: effectiveContext.userId }, 'permission denied');
             throw new AuthorizationError(`This action requires the "${permission}" permission.`);
+          }
+        }
+
+        // --- Plan entitlements ------------------------------------------------
+        if (
+          (definition.features?.length || definition.requiresActiveSubscription) &&
+          effectiveContext.estateId
+        ) {
+          const entitlements = await loadEntitlements(effectiveContext.estateId);
+
+          for (const feature of definition.features ?? []) {
+            assertFeature(entitlements, feature);
+          }
+
+          if (definition.requiresActiveSubscription && entitlements.readOnly) {
+            throw new PlanRestrictionError(
+              'This estate\u2019s subscription is not active. Reading still works; changes are paused until it is renewed.',
+            );
           }
         }
 

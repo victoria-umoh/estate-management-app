@@ -8,6 +8,7 @@ import { auditService } from '@/modules/audit';
 import { roleService } from '@/modules/role';
 import { estateRepository } from './repository';
 import type { EstateDoc } from './schema';
+import { TRIAL_DAYS } from '@/core/entitlements';
 
 const log = createLogger('estate');
 
@@ -42,12 +43,16 @@ export class EstateService {
           address: input.address,
           contact: input.contact,
           status: 'trial',
+          // Set at creation rather than by a later call, so there is no window
+          // in which an estate exists on a trial that never ends.
+          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
           settings: {
             visitorOverstayGraceMinutes: config.visitors.overstayGraceMinutes,
             visitorPassMaxDurationDays: 7,
             requireResidentApproval: true,
             requireNinVerification: config.identity.requireNinVerification,
             requireExitPassApproval: true,
+            temporaryPassMaxDurationDays: 30,
             allowLandlordTenantRegistration: true,
             idCardExpiryWarningDays: 30,
             currency: config.payments.defaultCurrency,

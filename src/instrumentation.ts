@@ -24,8 +24,11 @@ export async function register(): Promise<void> {
 
     // Wires authentication into the HTTP kernel. Until this runs, every
     // authenticated route fails closed by design.
-    const { registerAuthContextResolver } = await import('@/modules/auth');
-    registerAuthContextResolver();
+    // Goes through bootstrap() rather than wiring seams directly, so the
+    // registration is idempotent and identical to the one the HTTP kernel
+    // performs on its first request.
+    const { bootstrap } = await import('@/bootstrap');
+    bootstrap();
   }
 
   if (process.env.NEXT_RUNTIME === 'edge') {

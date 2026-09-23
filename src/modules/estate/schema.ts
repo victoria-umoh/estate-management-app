@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Model, type Types } from 'mongoose';
+import type { PlanCode } from '@/core/entitlements';
 
 /**
  * An estate.
@@ -34,6 +35,18 @@ export interface EstateDoc {
   logoUrl?: string | null;
 
   status: EstateStatus;
+
+  /**
+   * Subscription.
+   *
+   * `planCode` is null during a trial — the trial runs at Professional, and
+   * recording a plan the estate has not bought would make the billing run
+   * charge for it.
+   */
+  planCode?: PlanCode | null;
+  billingPeriod?: 'monthly' | 'annual' | null;
+  trialEndsAt?: Date | null;
+  subscriptionEndsAt?: Date | null;
 
   /**
    * Operational settings, configurable per estate.
@@ -105,6 +118,15 @@ const estateSchema = new Schema<EstateDoc>(
     },
 
     logoUrl: { type: String, default: null },
+
+    planCode: {
+      type: String,
+      enum: ['trial', 'starter', 'professional', 'enterprise'],
+      default: null,
+    },
+    billingPeriod: { type: String, enum: ['monthly', 'annual'], default: null },
+    trialEndsAt: { type: Date, default: null },
+    subscriptionEndsAt: { type: Date, default: null },
 
     status: {
       type: String,

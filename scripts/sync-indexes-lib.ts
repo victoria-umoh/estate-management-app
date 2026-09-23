@@ -19,19 +19,23 @@ import type { Model } from 'mongoose';
 // Imported for their side effect of registering the model, then listed
 // explicitly so a new collection cannot be forgotten silently.
 import { AccessCredentialModel } from '@/modules/credential/schema';
+import { AnnouncementModel } from '@/modules/announcement';
 import { AuditLogModel } from '@/modules/audit';
 import { ChangeRequestModel } from '@/modules/change-request';
 import { DependantModel } from '@/modules/household';
 import { EmergencyModel } from '@/modules/emergency/schema';
 import { EstateModel } from '@/modules/estate';
+import { ExitPassModel } from '@/modules/exit-pass/schema';
 import { GateModel } from '@/modules/gate/schema';
 import { IncidentCommentModel, IncidentModel } from '@/modules/incident';
 import { MembershipModel } from '@/modules/membership/schema';
 import { MovementModel } from '@/modules/movement';
+import { NotificationModel, NotificationPreferenceModel } from '@/modules/notification';
 import { PropertyModel, PropertyOccupancyModel } from '@/modules/property';
 import { RoleModel } from '@/modules/role';
 import { ServiceRequestModel } from '@/modules/service-request';
 import { SessionModel } from '@/modules/auth';
+import { TemporaryPassModel } from '@/modules/temporary-pass/schema';
 import { UserModel } from '@/modules/user/schema';
 import { VehicleModel } from '@/modules/vehicle';
 import { VisitorPassModel } from '@/modules/visitor/schema';
@@ -51,11 +55,16 @@ const MODELS: Array<Model<any>> = [
   AccessCredentialModel,
   GateModel,
   VisitorPassModel,
+  ExitPassModel,
+  TemporaryPassModel,
   MovementModel,
   IncidentModel,
   IncidentCommentModel,
   EmergencyModel,
   ServiceRequestModel,
+  NotificationModel,
+  NotificationPreferenceModel,
+  AnnouncementModel,
   AuditLogModel,
 ];
 

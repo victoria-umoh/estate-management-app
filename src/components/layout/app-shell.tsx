@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -10,6 +11,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { visibleNavigation, type NavSection } from './navigation';
+
+/**
+ * ⌘K search, loaded on demand for the same reason the toaster is: the shell is
+ * on every authenticated route, so importing the palette directly would charge
+ * it to the gate scanner's first paint for a dialog that screen never opens.
+ */
+const CommandPalette = dynamic(
+  () => import('./command-palette').then((module) => module.CommandPalette),
+  { ssr: false, loading: () => null },
+);
 
 export interface AppShellProps {
   children: ReactNode;
@@ -48,6 +59,8 @@ export function AppShell({ children, permissions, user, badges = {} }: AppShellP
 
   return (
     <div className="bg-background min-h-dvh">
+      <CommandPalette permissions={permissions} />
+
       {/* Desktop sidebar */}
       <aside className="border-border bg-card fixed inset-y-0 left-0 z-30 hidden w-64 border-r lg:block">
         <SidebarContent sections={sections} pathname={pathname} badges={badges} user={user} />

@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import type { PaginatedResult } from '@/core/db';
 import { decryptField } from '@/core/crypto';
 import { NotFoundError } from '@/core/errors';
+import { events } from '@/core/events';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
@@ -249,6 +250,14 @@ export class ResidentService {
       resourceId: membershipId,
       before: { status: membership.status },
       after: { status: 'active', residentCode },
+    });
+
+    // Emitted after the record is committed, so a failing welcome notification
+    // cannot undo an approval. The bus isolates handler errors by design.
+    events.emit('resident.approved', {
+      residentId: membershipId,
+      estateId: context.estateId,
+      approvedBy: context.userId,
     });
 
     return updated;

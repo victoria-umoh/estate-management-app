@@ -24,6 +24,10 @@ const JOBS = {
     const { runOverdueSweep } = await import('@/jobs/billing-run');
     return runOverdueSweep();
   },
+  dunning: async () => {
+    const { subscriptionService } = await import('@/modules/subscription');
+    return subscriptionService.runDunning();
+  },
   'sla-sweep': async () => {
     const { serviceRequestService } = await import('@/modules/service-request');
     return serviceRequestService.escalateOverdue();

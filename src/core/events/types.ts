@@ -31,6 +31,20 @@ export interface DomainEventMap {
   'visitor.overstayed': { passId: string; estateId: string; hostId: string; minutesOver: number };
   'visitor.denied': { passId?: string; gateId: string; reason: string };
 
+  // Exit (removal) passes
+  'exitPass.created': {
+    passId: string;
+    estateId: string;
+    requestedBy: string;
+    approvalRequired: boolean;
+  };
+  'exitPass.approved': { passId: string; estateId: string; approvedBy: string };
+  'exitPass.used': { passId: string; estateId: string; gateId: string };
+
+  // Temporary passes
+  'temporaryPass.issued': { passId: string; estateId: string; sponsorId: string };
+  'temporaryPass.revoked': { passId: string; estateId: string; reason: string };
+
   // Safety
   'incident.created': { incidentId: string; estateId: string; severity: string };
   'incident.resolved': { incidentId: string; estateId: string };
