@@ -5,7 +5,7 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-23
-**Current phase:** 11 complete — the application caught up with the API
+**Current phase:** 12 complete — notifications, passes, search, SaaS, marketing
 
 **The bar changed this phase.** A phase is no longer done when the service works
 and the tests are green. It is done when the screen loads, signed in, as the
@@ -13,16 +13,23 @@ role that uses it — verified by `pnpm smoke`, which drives every screen and
 endpoint over HTTP as all three roles. Ten phases were reported complete under
 the old bar while 18 of 24 navigation links went to screens that did not exist.
 
-**Next action:** notifications and announcements (email + SMS adapters). That
-unblocks four things deferred earlier for want of a send path: email
-verification, password reset, tenant invitations and dunning.
+**Next action:** wire the four deferred auth flows to the send path that now
+exists — email verification, password reset, tenant invitations, and the dunning
+notification. The templates and the transport are built; the auth service and
+the dunning job simply do not call them yet.
 
-**Then:** exit passes and temporary passes — the only spec features with
-permissions defined and no code behind them at all.
+**Then:** reports and exports (CSV/Excel/PDF, scheduling), the super-admin
+platform console, and hardening — OpenAPI spec, Playwright e2e over the six
+spec workflows, and the deployment docs.
 
-**Open decisions for the owner** (both recorded in OUTPUT_LOGS):
-- Residents can read the estate directory; is that intended?
-- Residents can read any incident's detail, not only their own.
+**Still missing UI:** notifications centre, announcements, exit/temporary
+passes, subscription/billing portal. All four have working, tested APIs and no
+screens; their nav entries remain flagged `planned` until they do.
+
+**Resolved this session:** incidents are now narrowed to the caller
+(`incident.viewAll` gates the estate-wide read). The resident directory stays
+open by decision, guarded by a smoke check that fails if the projection ever
+grows a contact field.
 
 ---
 

@@ -1314,3 +1314,99 @@ routing one.
 
 typecheck · lint · 629 tests · build · bundle budget (shared First Load JS
 unchanged at **103.9 kB**) · **`pnpm smoke` 47/47**.
+
+---
+
+## 2026-09-23T14:30Z — Phase 12: Notifications, passes, search, SaaS, marketing
+
+Run with seven subagents under strict file ownership, against a shared brief.
+
+### The measurable change
+
+| | Before this session | Now |
+|---|---|---|
+| App screens | 6 | **23** |
+| API routes (`/api/v1`) | 42 | **90** |
+| Permissions gating nothing | 52 of 120 | **8 of 121** |
+| Tests | 629 | **738** |
+| Dead navigation links | 18 | **0** |
+| Shared First Load JS | 103.9 kB | **104.1 kB** |
+
+The eight remaining unenforced permissions are four soft-delete variants (this
+system does not hard-delete), `user.update`, and the three platform/super-admin
+permissions whose console is not built.
+
+### Delivered
+
+**Notifications & announcements** — Resend and Termii adapters behind
+interfaces with a recording console fallback; twelve typed templates held in
+code; per-resident channel preferences; announcements with audience targeting
+and publish fan-out; six event handlers wired at bootstrap.
+
+**Exit & temporary passes** — the last spec features that had permissions and
+no code. Exit passes carry an item manifest and lock it at approval. Temporary
+passes are reusable within a bounded window and deliberately have no terminal
+"used" state.
+
+**Global search** — residents (name, code, phone and NIN by blind index),
+plates, pass codes, tickets, incident references, invoices, payments,
+properties. Permission-filtered per result type, with a ⌘K palette.
+
+**SaaS layer** — plan definitions, the entitlement seam in the route kernel,
+subscriptions with trial/grace/suspension, and the marketing site with a
+pricing page driven by the same plan definitions the server gates on.
+
+**Dashboard** — replaced the placeholder with per-caller blocks.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| Entitlement seam built now, gating nothing yet | Retrofitting across 90 routes is how one gets missed, and a missed check is a paid feature served free with no test to catch it. |
+| Grace and suspension stop writes, not reads | An estate that forgets to pay must not lose its gate. Residents queuing at a barrier that will not open is a safety problem, not a billing one. |
+| Emergency and security notifications cannot be muted | A resident who silenced "alerts" six months ago must still be told their gate reported an emergency. Enforced in the service, before preferences are read. |
+| Exit-pass manifests lock at approval | A list the person being checked can still edit is not evidence. A mistake is corrected by cancelling and raising a new pass, leaving both on the record. |
+| `approvalRequired` snapshotted onto each pass | An estate that turns approval off next month must not retroactively make an unapproved removal look authorised. |
+| Templates live in code, not the database | A template editable at runtime is a template that can be edited into an injection. |
+| Search mirrors each list endpoint's permission exactly | Search must never be a wider door than the screen it links to. |
+| A NIN search is audited and needs `resident.viewNin` | Someone who cannot reveal a NIN must not confirm one exists by searching for it. |
+| One short-code alphabet, shared | Three pass types are typed into the same field by the same officer on the same handset. A second alphabet is how the O/0 problem returns. |
+
+### Decided by the owner this session
+
+**Incidents are now narrowed.** Residents held `incident.view`, and the
+estate-wide list and detail were gated on it — so any resident could read the
+full description and named parties of every incident on the estate. Split into
+`incident.view` (yours) and `incident.viewAll` (the estate). The list narrows
+rather than refuses, since following your own report is why a resident holds it;
+the detail of someone else's incident is a **404, not a 403**, because
+confirming it exists still tells you it happened.
+
+**Chairmen still cannot revoke temporary passes** — left as-is by decision.
+Separation of duties: the chairman sets policy, security operates the gate.
+
+### What the smoke test caught that unit tests did not
+
+- The finance screen read `data.items` off a response that is a bare array.
+- `meta` was unreachable by any client, so no list could paginate properly.
+- Two screens depended on a `localStorage` key nothing ever wrote.
+- `POST /emergencies/:id` took the responder's identity from the request body.
+
+All four were live in code that had passing tests. `pnpm smoke` now covers
+public pages, 20 screens, 3 detail screens with live ids, 29 endpoints, and the
+permission, incident-scoping, dashboard-scoping, directory and webhook guards.
+
+### Notes for next time
+
+Running `pnpm build` while `pnpm dev` is up corrupts the shared `.next` and the
+dev server starts returning 500s. Two agents hit this independently. Build with
+dev stopped, or build in a worktree.
+
+`git add -A` while agents are mid-edit sweeps their files into unrelated
+commits. Two commits this session carry work their messages do not describe.
+Stage explicitly when running agents concurrently.
+
+### Gates
+
+typecheck · lint · **738 tests** · build · bundle budget · **`pnpm smoke` all
+checks passed**.

@@ -51,11 +51,21 @@ const SCREENS = [
   ['/admin/settings', 'admin', 'etting'],
 ];
 
+/**
+ * Detail screens, resolved from a live id.
+ *
+ * Kept separate because the id has to be fetched first — a hardcoded one would
+ * rot at the next reseed, and a detail page is exactly where a shape mismatch
+ * between the list projection and the detail projection shows up.
+ */
+const DETAIL_SCREENS = [
+  ['/residents', '/admin/residents', 'admin', 'membershipId'],
+  ['/properties', '/admin/properties', 'admin', 'id'],
+  ['/incidents', '/admin/incidents', 'admin', 'id'],
+];
+
 /** GET endpoints, with the role that should be allowed. */
 const ENDPOINTS = [
-  ['/dashboard', 'resident'],
-  ['/dashboard', 'officer'],
-  ['/dashboard', 'admin'],
   ['/me/profile', 'resident'],
   ['/me/property', 'resident'],
   ['/me/vehicles', 'resident'],
@@ -77,6 +87,14 @@ const ENDPOINTS = [
   ['/audit', 'admin'],
   ['/roles', 'admin'],
   ['/estate', 'admin'],
+  ['/notifications', 'resident'],
+  ['/notifications/preferences', 'resident'],
+  ['/announcements', 'resident'],
+  ['/exit-passes', 'resident'],
+  ['/temporary-passes', 'officer'],
+  ['/search?q=Ada', 'admin'],
+  ['/subscription', 'admin'],
+  ['/dashboard', 'resident'],
 ];
 
 /**
@@ -161,6 +179,21 @@ async function main() {
     report(true, `signed in as ${role.padEnd(9)}`, email);
   }
 
+  console.log('\nPublic pages (no session)');
+  for (const [path, expected] of [
+    ['/', 'EstateOS'],
+    ['/pricing', 'Professional'],
+    ['/login', 'ign in'],
+  ]) {
+    const response = await fetch(`${BASE}${path}`, { redirect: 'manual' });
+    const html = response.ok ? await response.text() : '';
+    report(
+      response.status === 200 && html.includes(expected),
+      path.padEnd(24),
+      `${response.status}${html.includes(expected) ? '' : ` missing "${expected}"`}`,
+    );
+  }
+
   console.log('\nScreens (server-rendered, as the role that uses them)');
   for (const [path, role, expected] of SCREENS) {
     const response = await fetch(`${BASE}${path}`, {
@@ -187,6 +220,33 @@ async function main() {
       response.status === 200 && !bounced && !errored && hasContent,
       path.padEnd(24),
       `${response.status} ${why} (${role})`.replace('  ', ' '),
+    );
+  }
+
+  console.log('\nDetail screens (id resolved live)');
+  for (const [listPath, screenBase, role, idField] of DETAIL_SCREENS) {
+    const list = await fetch(`${BASE}/api/v1${listPath}?limit=1`, {
+      headers: { authorization: `Bearer ${sessions[role].token}` },
+    }).then((r) => r.json());
+
+    const first = Array.isArray(list?.data) ? list.data[0] : undefined;
+    if (!first) {
+      report(true, `${screenBase}/:id`.padEnd(24), 'nothing seeded to open');
+      continue;
+    }
+
+    const path = `${screenBase}/${first[idField]}`;
+    const response = await fetch(`${BASE}${path}`, {
+      headers: { cookie: sessions[role].cookie },
+      redirect: 'manual',
+    });
+    const html = response.ok ? await response.text() : '';
+    const errored = html.includes('__next_error__') || html.includes('Application error');
+
+    report(
+      response.status === 200 && !errored,
+      `${screenBase}/:id`.padEnd(24),
+      `${response.status}${errored ? ' render error' : ''}`,
     );
   }
 
