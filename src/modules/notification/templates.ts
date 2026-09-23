@@ -340,7 +340,10 @@ export const NOTIFICATION_TEMPLATES: TemplateRegistry = {
       emailSubject: title,
       emailText: [title, '', summary, '', 'Read it in full under Announcements.'].join('\n'),
       smsBody: `${appName()}: ${title} — ${summary.slice(0, 100)}`,
-      actionUrl: `/announcements`,
+      // There is no per-announcement screen, so this lands on the list with the
+      // announcement as the fragment. A reader who follows it sees the notice
+      // among the others rather than meeting a 404.
+      actionUrl: `/announcements#${announcementId}`,
     }),
   },
 };

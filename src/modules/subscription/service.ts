@@ -192,7 +192,9 @@ export class SubscriptionService {
           { status: 'active', subscriptionEndsAt: { $lt: now } },
         ],
       },
-      { _id: 1 },
+      // The expiry dates come back too, so the notification can say how long it
+      // has been rather than just that something is wrong.
+      { _id: 1, status: 1, trialEndsAt: 1, subscriptionEndsAt: 1 },
     ).lean();
 
     for (const estate of expiring) {
@@ -205,7 +207,18 @@ export class SubscriptionService {
         resourceId: estate._id.toHexString(),
       });
 
-      events.emit('subscription.lapsed', { estateId: estate._id.toHexString() });
+      const lapsedOn = estate.status === 'trial' ? estate.trialEndsAt : estate.subscriptionEndsAt;
+
+      // Emitted AFTER the status is written and the audit line is recorded, so
+      // a chairman who clicks through from the email finds the estate in the
+      // state the email describes. The bus contains handler failures, so a
+      // notification that cannot be sent does not leave the estate half-lapsed.
+      events.emit('subscription.lapsed', {
+        estateId: estate._id.toHexString(),
+        daysOverdue: lapsedOn
+          ? Math.max(0, Math.floor((now.getTime() - lapsedOn.getTime()) / 86_400_000))
+          : 0,
+      });
     }
 
     // Grace is measured from when the subscription ended, not from when this

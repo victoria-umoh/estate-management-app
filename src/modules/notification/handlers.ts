@@ -158,6 +158,65 @@ export function registerNotificationHandlers(): void {
       });
     }),
 
+    events.on('invoice.overdue', async ({ payload }) => {
+      const context = systemContext(payload.estateId, 'notification:invoice.overdue');
+      const { invoiceRepository } = await import('@/modules/finance');
+
+      const invoice = await invoiceRepository.findById(context, payload.invoiceId);
+      if (!invoice) return;
+
+      // The resident who owes it, not the estate's finance desk: the reminder
+      // exists to be acted on, and only one of those two can pay.
+      await notificationService.send(context, {
+        recipientMembershipId: payload.membershipId,
+        templateId: 'billing.payment-overdue',
+        data: {
+          invoiceNumber: invoice.number,
+          amount: formatMinorUnits(invoice.total - invoice.amountPaid),
+          currency: invoice.currency,
+          daysOverdue: payload.daysOverdue,
+        },
+        resourceType: 'invoice',
+        resourceId: payload.invoiceId,
+      });
+    }),
+
+    events.on('subscription.lapsed', async ({ payload }) => {
+      const context = systemContext(payload.estateId, 'notification:subscription.lapsed');
+      const { estateRepository } = await import('@/modules/estate');
+
+      const estate = await estateRepository.findById(payload.estateId);
+      if (!estate) return;
+
+      const chairmen = await billingAudience(context);
+
+      if (chairmen.length === 0) {
+        // Loud for the same reason the emergency case is: an estate has just
+        // gone read-only and nobody who could fix it has been told. The sweep
+        // will run again tomorrow, but so will the silence.
+        log.error(
+          { estateId: payload.estateId },
+          'estate moved to past-due but no chairman to notify',
+        );
+        return;
+      }
+
+      await notificationService.sendMany(context, chairmen, {
+        templateId: 'billing.payment-overdue',
+        data: {
+          // The subscription is not an invoice in the ledger — it is billed by
+          // the platform, not by the estate — so the reference names the estate
+          // rather than inventing an invoice number that resolves to nothing.
+          invoiceNumber: `SUBSCRIPTION-${payload.estateId.slice(-6).toUpperCase()}`,
+          amount: formatMinorUnits(await subscriptionAmountMinor(estate)),
+          currency: estate.settings?.currency ?? 'NGN',
+          daysOverdue: payload.daysOverdue,
+        },
+        resourceType: 'estate',
+        resourceId: payload.estateId,
+      });
+    }),
+
     events.on('resident.approved', async ({ payload }) => {
       const context = systemContext(payload.estateId, 'notification:resident.approved');
       const { estateRepository } = await import('@/modules/estate');
@@ -209,6 +268,56 @@ async function securityAudience(context: RequestContext): Promise<string[]> {
   });
 
   return responders.map((membership) => membership._id.toHexString());
+}
+
+/**
+ * What the estate owes the platform for its next period.
+ *
+ * Recomputed from the plan and the current unit count rather than stored: the
+ * estate may have added units since it last paid, and quoting a stale figure in
+ * a chasing email is how a payment arrives short.
+ */
+async function subscriptionAmountMinor(estate: {
+  planCode?: string | null;
+  status: string;
+  _id: { toHexString(): string };
+}): Promise<number> {
+  const { PLANS } = await import('@/core/entitlements');
+  const { PropertyModel } = await import('@/modules/property');
+
+  const plan =
+    PLANS[
+      (estate.planCode ?? (estate.status === 'trial' ? 'trial' : 'starter')) as keyof typeof PLANS
+    ];
+  if (!plan) return 0;
+
+  const units = await PropertyModel.countDocuments({ estateId: estate._id, deletedAt: null });
+  return units * plan.pricePerUnitMonthlyMinor;
+}
+
+/**
+ * Who hears that the estate's own subscription has lapsed.
+ *
+ * Role rather than category, because this is a question about authority, not
+ * about who is on the ground: the chairman is the person who can authorise a
+ * payment. Estate managers are included as a fallback — a chairman on holiday
+ * must not be the reason an estate slides from grace into suspension.
+ */
+async function billingAudience(context: RequestContext): Promise<string[]> {
+  const { roleRepository } = await import('@/modules/role');
+
+  const roles = await roleRepository.findMany(context, {
+    code: { $in: ['estate-chairman', 'estate-manager'] },
+  });
+
+  if (roles.length === 0) return [];
+
+  const holders = await membershipRepository.findMany(context, {
+    roleIds: { $in: roles.map((role) => role._id) },
+    status: 'active',
+  });
+
+  return holders.map((membership) => membership._id.toHexString());
 }
 
 /** Integer minor units to a readable major-unit string: 5000000 → "50,000.00". */

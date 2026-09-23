@@ -111,6 +111,46 @@ export class NotificationService {
     return this.send(context, input);
   }
 
+  /**
+   * Send a template to a bare email address.
+   *
+   * The account flows — verify your email, reset your password, accept an
+   * invitation — address a PERSON, not a membership. The invitee has no account
+   * yet; someone resetting a password cannot sign in to read an in-app message
+   * about how to sign in. So there is no notification record and no preference
+   * lookup: these are transactional, they are the only way the recipient can
+   * proceed, and a resident who muted "account" notifications has not asked to
+   * be locked out of their own account.
+   *
+   * Never throws, for the same reason `send` does not: a registration must not
+   * be rolled back because the mail queue was briefly unreachable.
+   */
+  async sendToAddress<TId extends NotificationTemplateId>(input: {
+    to: string;
+    templateId: TId;
+    data: NotificationTemplateDataMap[TId];
+  }): Promise<boolean> {
+    try {
+      const template = getTemplate(input.templateId);
+      const rendered = template.render(input.data);
+
+      const queue = await getQueue();
+      await queue.enqueue('notification.email', {
+        to: input.to,
+        templateId: template.id,
+        data: { subject: rendered.emailSubject, text: rendered.emailText },
+      });
+
+      return true;
+    } catch (error) {
+      // The address is deliberately not logged: these calls are made on paths
+      // that must not confirm whether an address is registered, and a log line
+      // is read by more people than a response body.
+      log.error({ err: error, templateId: input.templateId }, 'direct notification send failed');
+      return false;
+    }
+  }
+
   private async dispatch<TId extends NotificationTemplateId>(
     context: RequestContext,
     input: SendNotificationInput<TId>,

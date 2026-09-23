@@ -84,16 +84,30 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
 }
 
 /**
- * Generate a refresh token.
+ * Generate opaque credential material.
  *
- * Returns the plaintext once — to be sent to the client and never stored — plus
- * the hash that is persisted.
+ * Returns the plaintext once — to be sent to the holder and never stored — plus
+ * the hash that is persisted. 32 bytes of CSPRNG output is 256 bits of entropy,
+ * which is not guessable at any rate an attacker can sustain, so these need no
+ * attempt counter of their own the way a six-digit OTP does.
  */
-export function generateRefreshToken(): { token: string; hash: string } {
-  const token = randomBytes(48).toString('base64url');
-  return { token, hash: hashRefreshToken(token) };
+export function generateOpaqueToken(bytes = 32): { token: string; hash: string } {
+  const token = randomBytes(bytes).toString('base64url');
+  return { token, hash: hashOpaqueToken(token) };
 }
 
-export function hashRefreshToken(token: string): string {
+export function hashOpaqueToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
+
+/**
+ * Generate a refresh token.
+ *
+ * Longer than the default because it is presented on every request for the life
+ * of a session rather than once.
+ */
+export function generateRefreshToken(): { token: string; hash: string } {
+  return generateOpaqueToken(48);
+}
+
+export const hashRefreshToken = hashOpaqueToken;

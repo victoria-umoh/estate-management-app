@@ -99,3 +99,39 @@ export const ChangePasswordDto = z.object({
 });
 
 export const SelectEstateDto = z.object({ estateId: z.string().min(1) });
+
+/** Resending a verification link needs only the address it should go to. */
+export const ResendVerificationDto = z.object({ email });
+
+/**
+ * Inviting someone into an estate.
+ *
+ * The category is a deliberately narrow subset of the resident categories. An
+ * invitation is a household-level act — a landlord admitting their tenant, a
+ * homeowner adding a dependant — and letting it mint `estate-staff` or
+ * `security-personnel` would turn "invite a tenant" into a privilege-escalation
+ * primitive for anyone holding `resident.create`.
+ */
+export const InviteResidentDto = z.object({
+  email,
+  category: z.enum(['tenant', 'dependant', 'family-member', 'domestic-staff']),
+  propertyId: z.string().optional(),
+});
+export type InviteResidentInput = z.infer<typeof InviteResidentDto>;
+
+/**
+ * Accepting an invitation.
+ *
+ * No email field: the address is whatever the token says it is. Accepting a
+ * body-supplied address would let anyone holding one invitation create an
+ * account against a different person's email.
+ */
+export const AcceptInvitationDto = z.object({
+  token: z.string().min(1),
+  firstName: z.string().trim().min(2).max(80),
+  middleName: z.string().trim().max(80).optional(),
+  lastName: z.string().trim().min(2).max(80),
+  phone,
+  password,
+});
+export type AcceptInvitationInput = z.infer<typeof AcceptInvitationDto>;

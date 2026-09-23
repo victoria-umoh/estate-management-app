@@ -1,4 +1,5 @@
 import {
+  Globe,
   AlertTriangle,
   BadgeCheck,
   Banknote,
@@ -58,15 +59,17 @@ export const NAVIGATION: NavSection[] = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: Home },
-      { label: 'Announcements', href: '/announcements', icon: Megaphone,
-        planned: true,
+      {
+        label: 'Announcements',
+        href: '/announcements',
+        icon: Megaphone,
+        permissions: [PERMISSIONS.ANNOUNCEMENT_VIEW],
       },
       {
         label: 'Notifications',
         href: '/notifications',
         icon: Bell,
         badgeKey: 'unreadNotifications',
-        planned: true,
       },
     ],
   },
@@ -92,7 +95,6 @@ export const NAVIGATION: NavSection[] = [
         href: '/my/exit-passes',
         icon: FileText,
         permissions: [PERMISSIONS.EXIT_PASS_VIEW],
-        planned: true,
       },
       {
         label: 'Dues & payments',
@@ -118,6 +120,12 @@ export const NAVIGATION: NavSection[] = [
         href: '/security',
         icon: ShieldCheck,
         permissions: [PERMISSIONS.GATE_OPERATE, PERMISSIONS.GATE_LOG_VIEW],
+      },
+      {
+        label: 'Passes',
+        href: '/security/passes',
+        icon: FileText,
+        permissions: [PERMISSIONS.EXIT_PASS_VERIFY, PERMISSIONS.TEMPORARY_PASS_VERIFY],
       },
       {
         label: 'Gate activity',
@@ -164,6 +172,12 @@ export const NAVIGATION: NavSection[] = [
         badgeKey: 'openIncidents',
       },
       {
+        label: 'Announcements',
+        href: '/admin/announcements',
+        icon: Megaphone,
+        permissions: [PERMISSIONS.ANNOUNCEMENT_CREATE],
+      },
+      {
         label: 'Service requests',
         href: '/admin/requests',
         icon: Wrench,
@@ -180,7 +194,6 @@ export const NAVIGATION: NavSection[] = [
         href: '/admin/reports',
         icon: BarChart3,
         permissions: [PERMISSIONS.REPORT_VIEW],
-        planned: true,
       },
     ],
   },
@@ -200,10 +213,27 @@ export const NAVIGATION: NavSection[] = [
         permissions: [PERMISSIONS.ROLE_VIEW],
       },
       {
+        label: 'Billing',
+        href: '/admin/billing',
+        icon: Banknote,
+        permissions: [PERMISSIONS.SUBSCRIPTION_VIEW],
+      },
+      {
         label: 'Settings',
         href: '/admin/settings',
         icon: Settings,
         permissions: [PERMISSIONS.ESTATE_SETTINGS_MANAGE],
+      },
+    ],
+  },
+  {
+    title: 'Platform',
+    items: [
+      {
+        label: 'All estates',
+        href: '/platform',
+        icon: Globe,
+        permissions: [PERMISSIONS.PLATFORM_ESTATE_VIEW],
       },
     ],
   },

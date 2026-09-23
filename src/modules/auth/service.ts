@@ -20,6 +20,7 @@ import { roleService } from '@/modules/role';
 import { auditService } from '@/modules/audit';
 import { userRepository } from '@/modules/user/repository';
 import type { UserDoc } from '@/modules/user/schema';
+import { accountService } from './account.service';
 import type { LoginInput, RegisterInput } from './dto';
 import {
   assertPasswordStrength,
@@ -96,7 +97,7 @@ export class AuthService {
 
     const passwordHash = await hashPassword(input.password);
 
-    return withTransaction(async (session) => {
+    const created = await withTransaction(async (session) => {
       const user = await userRepository.create(
         {
           firstName: input.firstName,
@@ -147,8 +148,27 @@ export class AuthService {
         'account registered',
       );
 
-      return { userId: user._id.toHexString(), membershipId: membership._id.toHexString() };
+      return {
+        userId: user._id.toHexString(),
+        membershipId: membership._id.toHexString(),
+        verificationSubject: {
+          _id: user._id,
+          firstName: user.firstName,
+          email: user.email,
+        },
+      };
     });
+
+    // Sent AFTER the transaction commits, never inside it. An email enqueued
+    // from within a transaction that then aborts is an email about an account
+    // that does not exist — and `sendToAddress` swallows its own failures, so a
+    // mail queue that is briefly down costs the new resident a resend rather
+    // than costing them the registration.
+    await accountService.issueEmailVerification(created.verificationSubject, {
+      estateId: input.estateId,
+    });
+
+    return { userId: created.userId, membershipId: created.membershipId };
   }
 
   // ---------------------------------------------------------------------------

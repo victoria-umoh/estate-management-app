@@ -203,14 +203,40 @@ export class InvoiceService {
    * is owed. Penalties, if an estate charges them, are a separate posting.
    */
   async markOverdue(context: RequestContext): Promise<number> {
+    const now = new Date();
+
+    // Read first, then update. The previous single `updateMany` was cheaper but
+    // told us only how many rows moved, and "three invoices went overdue" has
+    // nobody to notify — the reminder has to name an invoice and a resident.
+    const due = await invoiceRepository.findMany(context, {
+      status: { $in: ['issued', 'partially-paid'] },
+      dueAt: { $lt: now },
+    });
+
+    if (due.length === 0) return 0;
+
     const count = await invoiceRepository.updateMany(
       context,
       {
+        _id: { $in: due.map((invoice) => invoice._id) },
+        // Re-checked in the filter rather than trusted from the read: an
+        // invoice paid in the gap between the two queries must not be flagged.
         status: { $in: ['issued', 'partially-paid'] },
-        dueAt: { $lt: new Date() },
       },
       { $set: { status: 'overdue' } },
     );
+
+    for (const invoice of due) {
+      events.emit('invoice.overdue', {
+        invoiceId: invoice._id.toHexString(),
+        estateId: context.estateId,
+        membershipId: invoice.membershipId.toHexString(),
+        daysOverdue: Math.max(
+          1,
+          Math.floor((now.getTime() - invoice.dueAt.getTime()) / 86_400_000),
+        ),
+      });
+    }
 
     if (count > 0) log.info({ count }, 'invoices marked overdue');
     return count;

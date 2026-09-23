@@ -55,8 +55,21 @@ export interface DomainEventMap {
   'invoice.issued': { invoiceId: string; estateId: string; amount: number };
   'payment.completed': { paymentId: string; estateId: string; amount: number };
   'payment.failed': { paymentId: string; estateId: string; reason: string };
+  /**
+   * An issued invoice has passed its due date.
+   *
+   * Emitted once per invoice by the overdue sweep, rather than once per sweep,
+   * because the person who has to be told is the one who owes the money — a
+   * single "N invoices are overdue" event has nobody to send to.
+   */
+  'invoice.overdue': {
+    invoiceId: string;
+    estateId: string;
+    membershipId: string;
+    daysOverdue: number;
+  };
   'subscription.activated': { estateId: string; planCode: string };
-  'subscription.lapsed': { estateId: string };
+  'subscription.lapsed': { estateId: string; daysOverdue: number };
 }
 
 export type DomainEventName = keyof DomainEventMap;
