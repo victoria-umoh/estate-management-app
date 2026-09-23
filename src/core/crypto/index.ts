@@ -15,3 +15,4 @@ export {
   type VerifiedToken,
 } from './tokens';
 export { keyFingerprint, currentKeyVersion } from './keys';
+export { generateShortCode, SHORT_CODE_ALPHABET } from './short-code';

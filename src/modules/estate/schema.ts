@@ -52,6 +52,14 @@ export interface EstateDoc {
     requireNinVerification: boolean;
     /** Require approval before an exit pass is valid at the gate. */
     requireExitPassApproval: boolean;
+    /**
+     * Maximum days a temporary pass may be valid for.
+     *
+     * The bound is the point of a temporary pass. Thirty days by default —
+     * long enough for a renovation, short enough that a contractor who
+     * finished in March is not still opening the gate in June.
+     */
+    temporaryPassMaxDurationDays: number;
     /** Allow a landlord to register tenants directly. */
     allowLandlordTenantRegistration: boolean;
     /** Days before expiry that an ID card is flagged for renewal. */
@@ -111,6 +119,7 @@ const estateSchema = new Schema<EstateDoc>(
       requireResidentApproval: { type: Boolean, default: true },
       requireNinVerification: { type: Boolean, default: true },
       requireExitPassApproval: { type: Boolean, default: true },
+      temporaryPassMaxDurationDays: { type: Number, default: 30, min: 1, max: 365 },
       allowLandlordTenantRegistration: { type: Boolean, default: true },
       idCardExpiryWarningDays: { type: Number, default: 30, min: 1, max: 365 },
       currency: { type: String, default: 'NGN' },

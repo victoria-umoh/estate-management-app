@@ -1,5 +1,5 @@
-import { randomInt } from 'node:crypto';
 import { Types } from 'mongoose';
+import { generateShortCode } from '@/core/crypto';
 import { BaseRepository, withTransaction } from '@/core/db';
 import { events } from '@/core/events';
 import { AuthorizationError, ConflictError, UnprocessableError } from '@/core/errors';
@@ -53,23 +53,6 @@ export interface WalkInInput {
   validForHours?: number;
   hostApproved: boolean;
   notes?: string;
-}
-
-/**
- * Codes are unambiguous by construction.
- *
- * No O/0, I/1 or S/5, because this is read aloud over a phone, copied from a
- * screenshot, and typed by an officer in poor light. A code that is technically
- * unique but practically confusable costs more than the entropy it saves.
- */
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';
-
-function generateCode(): string {
-  let code = '';
-  for (let index = 0; index < 6; index++) {
-    code += CODE_ALPHABET[randomInt(0, CODE_ALPHABET.length)];
-  }
-  return code;
 }
 
 export class VisitorService {
@@ -432,7 +415,7 @@ export class VisitorService {
   /** Retry on collision rather than trusting six characters to never repeat. */
   private async uniqueCode(context: RequestContext): Promise<string> {
     for (let attempt = 0; attempt < 8; attempt++) {
-      const code = generateCode();
+      const code = generateShortCode();
       if (!(await visitorPassRepository.findByCode(context, code))) return code;
     }
 

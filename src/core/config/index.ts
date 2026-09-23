@@ -196,12 +196,22 @@ function buildConfig() {
     sms: {
       driver: env.SMS_DRIVER,
       senderId: env.SMS_SENDER_ID,
-      termii: { apiKey: env.TERMII_API_KEY, baseUrl: env.TERMII_BASE_URL },
+      termii: {
+        apiKey: env.TERMII_API_KEY,
+        baseUrl: env.TERMII_BASE_URL,
+        channel: env.TERMII_CHANNEL,
+      },
       twilio: {
         accountSid: env.TWILIO_ACCOUNT_SID,
         authToken: env.TWILIO_AUTH_TOKEN,
         fromNumber: env.TWILIO_FROM_NUMBER,
       },
+    },
+
+    notifications: {
+      providerTimeoutMs: env.NOTIFICATION_PROVIDER_TIMEOUT_MS,
+      retentionDays: env.NOTIFICATION_RETENTION_DAYS,
+      announcementFanoutLimit: env.NOTIFICATION_ANNOUNCEMENT_FANOUT_LIMIT,
     },
 
     identity: {

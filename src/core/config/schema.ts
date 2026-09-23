@@ -138,9 +138,20 @@ export const envSchema = z
     SMS_SENDER_ID: z.string().default('EstateOS'),
     TERMII_API_KEY: z.string().optional(),
     TERMII_BASE_URL: z.string().url().default('https://api.ng.termii.com'),
+    TERMII_CHANNEL: z.enum(['dnd', 'generic', 'whatsapp']).default('dnd'),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_FROM_NUMBER: z.string().optional(),
+
+    // --- Notifications -----------------------------------------------------
+    NOTIFICATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+    NOTIFICATION_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
+    NOTIFICATION_ANNOUNCEMENT_FANOUT_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100_000)
+      .default(5_000),
 
     // --- Identity verification ---------------------------------------------
     IDENTITY_DRIVER: z.enum(['mock', 'dojah', 'prembly']).default('mock'),

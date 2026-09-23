@@ -44,8 +44,8 @@ import { cn } from '@/lib/utils';
  * the work here is triage: a supervisor moving eight tickets through the queue
  * should not pay for eight navigations. Every action refetches the page rather
  * than patching the row, since a transition changes fields the row does not
- * post — `assignedAt`, `overdue`, the resolution — and guessing at those is how
- * a queue starts lying about its own SLA.
+ * post — assigning moves the status, resolving clears `overdue` — and guessing
+ * at those is how a queue starts lying about its own SLA.
  */
 interface ServiceRequest {
   id: string;
@@ -54,8 +54,6 @@ interface ServiceRequest {
   priority: string;
   subject: string;
   status: string;
-  assignedToMembershipId: string | null;
-  assignedDepartment: string | null;
   dueAt: string;
   overdue: boolean;
   escalatedAt: string | null;
@@ -333,7 +331,6 @@ function TicketRow({
       <p className="mt-1 text-sm font-medium">{request.subject}</p>
       <p className="text-muted-foreground mt-0.5 text-xs">
         {request.category} · raised {formatDate(request.createdAt)}
-        {request.assignedDepartment && ` · ${request.assignedDepartment}`}
       </p>
 
       <TicketActions request={request} onRun={onRun} />
@@ -356,8 +353,10 @@ function TicketActions({
 }) {
   const [resolving, setResolving] = useState(false);
   const [resolution, setResolution] = useState('');
-  // Satisfaction is the resident's verdict, so it stays optional — a supervisor
-  // closing a ticket nobody rated must not have to invent a number.
+  // Satisfaction is the requester's own verdict: the service records it only
+  // when the person closing the ticket is the one who raised it, and discards
+  // it otherwise. Offered here because staff do raise tickets, and said plainly
+  // below so nobody thinks they rated someone else's work.
   const [rating, setRating] = useState('');
 
   if (request.status === 'closed') {
@@ -416,7 +415,7 @@ function TicketActions({
         )}
 
         <label className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          Rating
+          Your rating
           <select
             value={rating}
             onChange={(event) => setRating(event.target.value)}
@@ -442,8 +441,8 @@ function TicketActions({
           title={`Close ${request.ticketNumber}?`}
           description={
             rating
-              ? `The ticket is closed and recorded with a satisfaction rating of ${rating} out of 5. Closing is terminal.`
-              : 'The ticket is closed with no satisfaction rating. Closing is terminal — pick a rating first if the resident gave one.'
+              ? `Closing is terminal. The rating of ${rating} out of 5 is recorded only if you are the person who raised this ticket; it is discarded otherwise.`
+              : 'Closing is terminal. No satisfaction rating is recorded.'
           }
           confirmLabel="Close ticket"
           tone="danger"

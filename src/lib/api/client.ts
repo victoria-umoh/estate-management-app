@@ -154,5 +154,13 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
 
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, options?: { idempotencyKey?: string }) =>
+    request<T>(path, {
+      method: 'DELETE',
+      // Close and escalate are DELETEs that declare `idempotent: true`; without
+      // a key a retry after a timeout is processed as a second request.
+      ...(options?.idempotencyKey
+        ? { headers: { 'idempotency-key': options.idempotencyKey } }
+        : {}),
+    }),
 };

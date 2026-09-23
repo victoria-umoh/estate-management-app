@@ -53,6 +53,9 @@ const SCREENS = [
 
 /** GET endpoints, with the role that should be allowed. */
 const ENDPOINTS = [
+  ['/dashboard', 'resident'],
+  ['/dashboard', 'officer'],
+  ['/dashboard', 'admin'],
   ['/me/profile', 'resident'],
   ['/me/property', 'resident'],
   ['/me/vehicles', 'resident'],
@@ -200,6 +203,28 @@ async function main() {
       response.status === 403 || response.status === 404,
       `${role} → ${path}`.padEnd(24),
       `${response.status} ${body?.error?.code ?? 'ALLOWED — LEAK'}`,
+    );
+  }
+
+  console.log('\nDashboard blocks are scoped to the caller');
+  for (const [role, allowed, forbidden] of [
+    ['resident', ['resident'], ['estate', 'finance', 'security']],
+    ['officer', ['security'], ['estate', 'finance']],
+    ['admin', ['estate', 'finance', 'security'], []],
+  ]) {
+    const response = await fetch(`${BASE}/api/v1/dashboard`, {
+      headers: { authorization: `Bearer ${sessions[role].token}` },
+    });
+    const body = await response.json().catch(() => null);
+    const blocks = Object.keys(body?.data ?? {});
+
+    const missing = allowed.filter((b) => !blocks.includes(b));
+    const leaked = forbidden.filter((b) => blocks.includes(b));
+
+    report(
+      missing.length === 0 && leaked.length === 0,
+      `${role} dashboard`.padEnd(24),
+      leaked.length ? `LEAKED ${leaked.join(',')}` : missing.length ? `missing ${missing.join(',')}` : blocks.join(','),
     );
   }
 
