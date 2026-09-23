@@ -46,6 +46,16 @@ export interface ChangeRequestDoc extends TenantDocument {
   reviewedBy?: Types.ObjectId | null;
   reviewedAt?: Date | null;
   reviewNote?: string | null;
+  /**
+   * The value is already held by another account.
+   *
+   * Recorded for the reviewer rather than returned to the submitter. Telling
+   * the submitter turned this endpoint into an identity oracle: post a NIN,
+   * and a rejection confirmed it belongs to a real account somewhere on the
+   * platform — no permission, no audit entry, and across tenants, which is
+   * precisely what the audited NIN lookup exists to prevent.
+   */
+  identityConflict?: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -92,6 +102,7 @@ const changeRequestSchema = new Schema<ChangeRequestDoc>(
     requestedBy: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
     reviewedBy: { type: Schema.Types.ObjectId, default: null, ref: 'User' },
     reviewedAt: { type: Date, default: null },
+    identityConflict: { type: Boolean, default: false },
     reviewNote: { type: String, trim: true, maxlength: 1000, default: null },
 
     deletedAt: { type: Date, default: null },

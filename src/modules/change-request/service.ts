@@ -49,9 +49,12 @@ export class ChangeRequestService {
     const user = await userRepository.findById(membership.userId);
     if (!user) throw new UnprocessableError('That resident no longer has an account.');
 
-    // Catch the clash at submission rather than letting a reviewer approve a
-    // change that cannot be applied.
-    await this.assertValueAvailable(input.field, input.value, user._id);
+    // Detected here so a reviewer is not asked to approve a change that cannot
+    // be applied — but recorded on the request rather than thrown back at the
+    // submitter, who would otherwise learn whether a NIN, phone or email is
+    // registered to somebody. The check itself is global and unaudited, which
+    // is exactly the disclosure the audited NIN lookup is careful about.
+    const identityConflict = await this.valueTaken(input.field, input.value, user._id);
 
     const existing = await changeRequestRepository.findOne(context, {
       membershipId: new Types.ObjectId(input.membershipId),
@@ -73,6 +76,7 @@ export class ChangeRequestService {
         {
           membershipId: new Types.ObjectId(input.membershipId),
           userId: user._id,
+          identityConflict,
           field: input.field,
           // A pending request must not become a plaintext copy of the value it
           // exists to protect.
@@ -218,7 +222,17 @@ export class ChangeRequestService {
 
     // Re-checked at approval, not only at submission: a competing account may
     // have taken the value while the request sat in the queue.
-    await this.assertValueAvailable(request.field, value, request.userId);
+    //
+    // This one *does* name the clash, because the reader is a reviewer who has
+    // to decide what to do about it — and who reached this point by being
+    // granted the permission to review identity changes. The submitter gets no
+    // such detail, for the reason recorded on `identityConflict`.
+    if (await this.valueTaken(request.field, value, request.userId)) {
+      throw new ConflictError(
+        `That ${request.field} is already registered to another account.`,
+        ErrorCode.DUPLICATE_IDENTITY,
+      );
+    }
 
     switch (request.field) {
       case 'nin':
@@ -297,27 +311,22 @@ export class ChangeRequestService {
     }
   }
 
-  /** Reject a value already held by a different account. */
-  private async assertValueAvailable(
+  /** Whether the value is already held by a different account. */
+  private async valueTaken(
     field: ChangeableField,
     value: string,
     ownUserId: Types.ObjectId,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const finder = {
       nin: () => userRepository.findByNin(value),
       phone: () => userRepository.findByPhone(value),
       email: () => userRepository.findByEmail(value),
     }[field as 'nin' | 'phone' | 'email'];
 
-    if (!finder) return;
+    if (!finder) return false;
 
     const holder = await finder();
-    if (holder && !holder._id.equals(ownUserId)) {
-      throw new ConflictError(
-        `That ${field} is already registered to another account.`,
-        ErrorCode.DUPLICATE_IDENTITY,
-      );
-    }
+    return Boolean(holder && !holder._id.equals(ownUserId));
   }
 
   /** Masked description of the current value, for the reviewer's screen. */

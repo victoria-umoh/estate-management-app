@@ -22,6 +22,16 @@ import {
 
 const log = createLogger('payment');
 
+/** MongoDB's duplicate-key code, which is how the idempotency claim reports a repeat. */
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    ((error as { code?: number }).code === 11000 ||
+      /E11000|duplicate key/i.test(String((error as { message?: string }).message ?? '')))
+  );
+}
+
 class PaymentRepository extends BaseRepository<PaymentDoc> {
   constructor() {
     super(PaymentModel);
@@ -308,7 +318,15 @@ export class PaymentService {
         eventType: verification.eventType,
         signatureValid: true,
       });
-    } catch {
+    } catch (error) {
+      // Only a duplicate key means "already in hand". Any other failure — a
+      // validation error, a transient write problem, a replica-set blip — was
+      // previously reported to the provider as a handled duplicate, and a
+      // provider does not retry a 200. The payment would simply never settle,
+      // with nothing above debug to say why. Anything else rethrows into the
+      // route's 500, which is what makes the provider try again.
+      if (!isDuplicateKeyError(error)) throw error;
+
       log.debug({ eventId: verification.eventId }, 'duplicate webhook ignored');
       return { accepted: true, reason: 'duplicate' };
     }

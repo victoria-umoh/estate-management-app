@@ -122,7 +122,10 @@ describe('email verification', () => {
   });
 
   it('verifies the address and activates the account', async () => {
-    const { userId } = await authService.register(registration);
+    const registered = await authService.register(registration);
+    // Null means the address was already taken; these tests use fresh ones.
+    if (!registered) throw new Error('registration unexpectedly returned null');
+    const { userId } = registered;
 
     await accountService.verifyEmail(linkToken('/verify-email'));
 
@@ -198,6 +201,8 @@ describe('email verification', () => {
 describe('password reset', () => {
   async function registeredAndActive() {
     const result = await authService.register(registration);
+    // Null means the address was already taken; these use fresh ones.
+    if (!result) throw new Error('registration unexpectedly returned null');
     await UserModel.updateOne({ _id: result.userId }, { $set: { status: 'active' } });
     await MembershipModel.updateOne({ _id: result.membershipId }, { $set: { status: 'active' } });
     email.clear();

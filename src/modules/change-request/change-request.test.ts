@@ -156,7 +156,15 @@ describe('submitting a request', () => {
     ).resolves.toBeDefined();
   });
 
-  it('rejects a value already held by another account', async () => {
+  /**
+   * A clash is recorded for the reviewer, not reported to the submitter.
+   *
+   * Refusing at submission made this an identity oracle: post a NIN and a
+   * rejection confirmed it belongs to a real account somewhere on the platform
+   * — no permission required, no audit entry written, and across tenants,
+   * which is exactly what the audited NIN lookup is careful about.
+   */
+  it('records a clash for the reviewer without telling the submitter', async () => {
     await UserModel.create({
       firstName: 'Other',
       lastName: 'Person',
@@ -168,11 +176,23 @@ describe('submitting a request', () => {
       status: 'active',
     });
 
+    const request = await changeRequestService.submit(resident(), {
+      membershipId,
+      field: 'phone',
+      value: '+2348077777777',
+    });
+
+    // Accepted, so the submitter learns nothing about the other account.
+    expect(request.status).toBe('pending');
+    // But flagged, so the reviewer is not asked to approve something that
+    // cannot be applied.
+    expect(request.identityConflict).toBe(true);
+
+    // And approval still refuses, with the real reason — to a reader who
+    // holds the permission to review identity changes.
     await expect(
-      changeRequestService.submit(resident(), {
-        membershipId,
-        field: 'phone',
-        value: '+2348077777777',
+      changeRequestService.review(reviewer(), request._id.toHexString(), {
+        approve: true,
       }),
     ).rejects.toMatchObject({ code: 'DUPLICATE_IDENTITY' });
   });

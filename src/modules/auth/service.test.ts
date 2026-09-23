@@ -47,6 +47,8 @@ const validRegistration = {
 
 async function registerAndActivate(overrides: Record<string, unknown> = {}) {
   const result = await authService.register({ ...validRegistration, ...overrides } as never);
+  // Null means the address was already taken; these use fresh ones.
+  if (!result) throw new Error('registration unexpectedly returned null');
 
   await UserModel.updateOne({ _id: result.userId }, { $set: { status: 'active' } });
   await MembershipModel.updateOne({ _id: result.membershipId }, { $set: { status: 'active' } });
@@ -56,7 +58,10 @@ async function registerAndActivate(overrides: Record<string, unknown> = {}) {
 
 describe('registration', () => {
   it('creates a user and an estate membership together', async () => {
-    const { userId, membershipId } = await authService.register(validRegistration);
+    const registered = await authService.register(validRegistration);
+    // Null means the address was already taken; these tests use fresh ones.
+    if (!registered) throw new Error('registration unexpectedly returned null');
+    const { userId, membershipId } = registered;
 
     const user = await UserModel.findById(userId).lean();
     const membership = await MembershipModel.findById(membershipId).lean();
@@ -68,7 +73,10 @@ describe('registration', () => {
   });
 
   it('stores only a hash of the password', async () => {
-    const { userId } = await authService.register(validRegistration);
+    const registered = await authService.register(validRegistration);
+    // Null means the address was already taken; these tests use fresh ones.
+    if (!registered) throw new Error('registration unexpectedly returned null');
+    const { userId } = registered;
     const user = await UserModel.findById(userId).select('+passwordHash').lean();
 
     expect(user?.passwordHash).toMatch(/^\$argon2id\$/);
@@ -76,49 +84,94 @@ describe('registration', () => {
   });
 
   it('stores blind indexes rather than searchable plaintext', async () => {
-    const { userId } = await authService.register(validRegistration);
+    const registered = await authService.register(validRegistration);
+    // Null means the address was already taken; these tests use fresh ones.
+    if (!registered) throw new Error('registration unexpectedly returned null');
+    const { userId } = registered;
     const user = await UserModel.findById(userId).lean();
 
     expect(user?.emailIndex).toBe(blindIndex('ada@example.com', 'email'));
     expect(user?.phoneIndex).toBe(blindIndex('+2348012345678', 'phone'));
   });
 
+  /**
+   * A duplicate is refused without saying so.
+   *
+   * Announcing "an account already exists with that email address" made this
+   * the one unauthenticated endpoint that confirmed an account — while
+   * `/password/forgot` and `/verify-email/resend` go to some trouble not to.
+   * The account holder is emailed instead, so a person who forgot they signed
+   * up still gets unstuck while a stranger learns nothing.
+   */
   describe('duplicate identity detection', () => {
-    it('rejects a duplicate email', async () => {
-      await authService.register(validRegistration);
-      await expect(authService.register(validRegistration)).rejects.toMatchObject({
-        code: 'DUPLICATE_IDENTITY',
-      });
+    it('creates nothing for a duplicate email, and does not say why', async () => {
+      const first = await authService.register(validRegistration);
+      expect(first).not.toBeNull();
+
+      const second = await authService.register(validRegistration);
+
+      expect(second).toBeNull();
+      expect(await UserModel.countDocuments({})).toBe(1);
     });
 
-    it('rejects a duplicate phone number', async () => {
+    it('creates nothing for a duplicate phone number', async () => {
       await authService.register(validRegistration);
-      await expect(
-        authService.register({ ...validRegistration, email: 'other@example.com' }),
-      ).rejects.toMatchObject({ code: 'DUPLICATE_IDENTITY' });
+
+      const second = await authService.register({
+        ...validRegistration,
+        email: 'other@example.com',
+      });
+
+      expect(second).toBeNull();
+      expect(await UserModel.countDocuments({})).toBe(1);
     });
 
     // Normalisation means the same line in a different spelling still collides.
-    it('rejects the same phone number written differently', async () => {
+    it('recognises the same phone number written differently', async () => {
       await authService.register(validRegistration);
-      await expect(
-        authService.register({
-          ...validRegistration,
-          email: 'other@example.com',
-          phone: '08012345678',
-        }),
-      ).rejects.toMatchObject({ code: 'DUPLICATE_IDENTITY' });
+
+      const second = await authService.register({
+        ...validRegistration,
+        email: 'other@example.com',
+        phone: '08012345678',
+      });
+
+      expect(second).toBeNull();
     });
 
-    it('rejects the same email in a different case', async () => {
+    it('recognises the same email in a different case', async () => {
       await authService.register(validRegistration);
-      await expect(
-        authService.register({
+
+      const second = await authService.register({
+        ...validRegistration,
+        email: 'ADA@Example.com',
+        phone: '+2348099999999',
+      });
+
+      expect(second).toBeNull();
+    });
+
+    /**
+     * The outcome is indistinguishable to the caller.
+     *
+     * This is the assertion that matters: a fresh address and a taken one must
+     * be told apart by nothing the caller can observe.
+     */
+    it('is indistinguishable from a fresh registration, to the caller', async () => {
+      await authService.register(validRegistration);
+
+      const taken = await authService.register(validRegistration).catch((e) => e);
+      const fresh = await authService
+        .register({
           ...validRegistration,
-          email: 'ADA@Example.com',
-          phone: '+2348099999999',
-        }),
-      ).rejects.toThrow();
+          email: 'brand.new@example.com',
+          phone: '+2348077777777',
+        })
+        .catch((e) => e);
+
+      // Neither throws, so there is no error code, message or status to compare.
+      expect(taken).not.toBeInstanceOf(Error);
+      expect(fresh).not.toBeInstanceOf(Error);
     });
   });
 
@@ -180,7 +233,10 @@ describe('login', () => {
 
   describe('account state', () => {
     it('refuses a membership still awaiting approval', async () => {
-      const { userId } = await authService.register(validRegistration);
+      const registered = await authService.register(validRegistration);
+      // Null means the address was already taken; these tests use fresh ones.
+      if (!registered) throw new Error('registration unexpectedly returned null');
+      const { userId } = registered;
       await UserModel.updateOne({ _id: userId }, { $set: { status: 'active' } });
 
       await expect(
@@ -463,6 +519,8 @@ describe('NIN verification', () => {
       email: 'other@example.com',
       phone: '+2348099999999',
     });
+    // Null means the address was already taken; these use fresh ones.
+    if (!second) throw new Error('registration unexpectedly returned null');
 
     await expect(authService.verifyNin(second.userId, '12345678911')).rejects.toMatchObject({
       code: 'DUPLICATE_IDENTITY',

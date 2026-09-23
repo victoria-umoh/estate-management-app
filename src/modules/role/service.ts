@@ -174,6 +174,18 @@ export class RoleService {
       throw new AuthorizationError('System roles cannot be modified.');
     }
 
+    // The same rank rule `createCustomRole` applies, which this was missing.
+    // Not exploitable with the roles as shipped — only the chairman holds
+    // `role.update`, and nothing outranks a chairman — but it becomes
+    // exploitable the moment an estate mints a custom role carrying it, and
+    // then a manager can edit a role above their own and assign it to
+    // themselves. The rule belongs on both paths or on neither.
+    const actorRank = await this.actorHighestRank(context);
+
+    if (!canGrantRank(actorRank, role.rank)) {
+      throw new AuthorizationError('You cannot modify a role ranked at or above your own.');
+    }
+
     if (updates.permissions) {
       if (updates.permissions.includes(WILDCARD)) {
         throw new AuthorizationError(

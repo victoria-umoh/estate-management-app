@@ -2341,23 +2341,7 @@
         ],
         "summary": "GET /api/v1/emergencies",
         "description": "Requires: `emergency.view`.",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "triggered",
-                "acknowledged",
-                "responding",
-                "resolved",
-                "false-alarm"
-              ]
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "Success",
@@ -2468,10 +2452,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "membershipId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
                   "type": {
                     "type": "string",
                     "enum": [
@@ -2513,7 +2493,6 @@
                   }
                 },
                 "required": [
-                  "membershipId",
                   "type"
                 ],
                 "additionalProperties": false
@@ -5131,10 +5110,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "reporterMembershipId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
                   "category": {
                     "type": "string",
                     "enum": [
@@ -5251,7 +5226,6 @@
                   }
                 },
                 "required": [
-                  "reporterMembershipId",
                   "category",
                   "title",
                   "description"
@@ -8818,6 +8792,329 @@
         ]
       }
     },
+    "/api/v1/reports/schedules/{id}": {
+      "patch": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "PATCH /api/v1/reports/schedules/{id}",
+        "description": "Requires: `report.schedule`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "description": "Pagination, on list routes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "active"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "DELETE /api/v1/reports/schedules/{id}",
+        "description": "Requires: `report.schedule`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "description": "Pagination, on list routes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/schedules": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "GET /api/v1/reports/schedules",
+        "description": "Requires: `report.schedule`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "description": "Pagination, on list routes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "POST /api/v1/reports/schedules",
+        "description": "Requires: `report.schedule`.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "description": "Pagination, on list routes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reportType": {
+                    "type": "string",
+                    "enum": [
+                      "collections",
+                      "gate-activity",
+                      "residents",
+                      "incidents",
+                      "visitors"
+                    ]
+                  },
+                  "tableId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "cadence": {
+                    "type": "string",
+                    "enum": [
+                      "daily",
+                      "weekly",
+                      "monthly"
+                    ]
+                  },
+                  "dayOfWeek": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "dayOfMonth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 28
+                  },
+                  "hour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23
+                  },
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                },
+                "required": [
+                  "reportType",
+                  "tableId",
+                  "cadence",
+                  "recipients"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/residents/{id}/approve": {
       "post": {
         "tags": [
@@ -9465,6 +9762,7 @@
                       "type": "string",
                       "enum": [
                         "resident.view",
+                        "resident.viewAll",
                         "resident.viewNin",
                         "resident.create",
                         "resident.update",
@@ -9487,12 +9785,14 @@
                         "property.transfer",
                         "property.delete",
                         "vehicle.view",
+                        "vehicle.viewAll",
                         "vehicle.create",
                         "vehicle.update",
                         "vehicle.verify",
                         "vehicle.blacklist",
                         "vehicle.delete",
                         "visitor.view",
+                        "visitor.viewAll",
                         "visitor.create",
                         "visitor.approve",
                         "visitor.verify",
@@ -9523,10 +9823,12 @@
                         "incident.close",
                         "incident.escalate",
                         "emergency.view",
+                        "emergency.viewAll",
                         "emergency.create",
                         "emergency.acknowledge",
                         "emergency.resolve",
                         "serviceRequest.view",
+                        "serviceRequest.viewAll",
                         "serviceRequest.create",
                         "serviceRequest.assign",
                         "serviceRequest.comment",

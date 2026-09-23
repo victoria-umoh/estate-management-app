@@ -73,7 +73,16 @@ export class AuthService {
    * log in anywhere, and a membership without a user is a dangling reference in
    * an estate's directory.
    */
-  async register(input: RegisterInput): Promise<{ userId: string; membershipId: string }> {
+  /**
+   * Register.
+   *
+   * Returns null when the address or phone is already registered — the caller
+   * cannot tell that from success, which is the point. The existing account
+   * holder is emailed instead.
+   */
+  async register(
+    input: RegisterInput,
+  ): Promise<{ userId: string; membershipId: string } | null> {
     assertPasswordStrength(input.password, {
       email: input.email,
       name: `${input.firstName} ${input.lastName}`,
@@ -87,12 +96,30 @@ export class AuthService {
     });
 
     if (duplicate) {
-      throw new ConflictError(
-        duplicate.field === 'email'
-          ? 'An account already exists with that email address.'
-          : 'An account already exists with that phone number.',
-        ErrorCode.DUPLICATE_IDENTITY,
-      );
+      /**
+       * Tell the account holder, not the person at the form.
+       *
+       * Returning "an account already exists with that email" made this an
+       * unauthenticated enumeration oracle — the one auth endpoint that
+       * answered, while `/password/forgot` and `/verify-email/resend` both
+       * return unconditionally and pad their timing precisely so they do not.
+       *
+       * The person registering still gets unstuck: if the address is theirs,
+       * the email arrives and tells them to sign in instead. If it is not,
+       * they learn nothing and the real owner learns someone tried.
+       */
+      const { notificationService } = await import('@/modules/notification');
+
+      await notificationService.sendToAddress({
+        to: input.email,
+        templateId: 'account.duplicate-registration',
+        data: {
+          name: input.firstName,
+          signInUrl: `${config.app.url}/login`,
+        },
+      });
+
+      return null;
     }
 
     const passwordHash = await hashPassword(input.password);

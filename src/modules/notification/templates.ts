@@ -96,6 +96,7 @@ export interface NotificationTemplateDataMap {
   };
 
   'announcement.published': { title: string; summary: string; announcementId: string };
+  'account.duplicate-registration': { name: string; signInUrl: string };
   'report.scheduled': {
     reportTitle: string;
     period: string;
@@ -335,6 +336,27 @@ export const NOTIFICATION_TEMPLATES: TemplateRegistry = {
     }),
   },
 
+  'account.duplicate-registration': {
+    id: 'account.duplicate-registration',
+    category: 'account',
+    priority: 'normal',
+    description: 'Tells an existing account holder that someone tried to register with their address.',
+    render: ({ name, signInUrl }) => ({
+      title: 'Someone tried to register with your address',
+      body: 'You already have an account.',
+      emailSubject: 'You already have an account',
+      emailText: [
+        `Hello ${name},`,
+        '',
+        'Someone just tried to create an account using this email address. You',
+        'already have one, so nothing was created.',
+        '',
+        `If that was you, sign in instead: ${signInUrl}`,
+        'If it was not, you can ignore this — nobody gained access to anything.',
+      ].join('\n'),
+      smsBody: `${appName()}: you already have an account. Sign in rather than registering again.`,
+    }),
+  },
   'report.scheduled': {
     id: 'report.scheduled',
     // An administrative artefact rather than an estate notice, but 'account' is
