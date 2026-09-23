@@ -15,6 +15,15 @@ const JOBS = {
     const { runOverstaySweep } = await import('@/jobs/overstay-sweep');
     return runOverstaySweep();
   },
+  'billing-run': async () => {
+    const { runBilling } = await import('@/jobs/billing-run');
+    // --force bills regardless of the due day, for a first run or a demo.
+    return runBilling(new Date(), process.argv.includes('--force'));
+  },
+  'mark-overdue': async () => {
+    const { runOverdueSweep } = await import('@/jobs/billing-run');
+    return runOverdueSweep();
+  },
   'sla-sweep': async () => {
     const { serviceRequestService } = await import('@/modules/service-request');
     return serviceRequestService.escalateOverdue();

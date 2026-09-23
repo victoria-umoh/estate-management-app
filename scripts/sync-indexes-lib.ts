@@ -36,7 +36,7 @@ import { UserModel } from '@/modules/user/schema';
 import { VehicleModel } from '@/modules/vehicle';
 import { VisitorPassModel } from '@/modules/visitor/schema';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const MODELS: Array<Model<any>> = [
   UserModel,
   MembershipModel,

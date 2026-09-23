@@ -9,8 +9,13 @@
  * Refuses to run against NODE_ENV=production.
  *
  *   pnpm seed:demo
+ *   pnpm seed:demo --reset   # wipe the previous demo estate first
+ *
+ * The demo accounts use fixed addresses (admin@example.com and friends) which
+ * are unique platform-wide, so a second run without --reset collides on the
+ * email index. That is the index working correctly; --reset is how you rerun.
  */
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { config } from '@/core/config';
 import { connectToDatabase } from '@/core/db';
 import { syncIndexes } from './sync-indexes-lib';
@@ -20,6 +25,7 @@ import { systemContext } from '@/core/tenancy';
 import { hashPassword } from '@/modules/auth';
 import { emergencyService } from '@/modules/emergency';
 import { estateService } from '@/modules/estate';
+import { feeCategoryService, invoiceService, paymentService } from '@/modules/finance';
 import { gateService } from '@/modules/gate';
 import { incidentService } from '@/modules/incident';
 import { MembershipModel } from '@/modules/membership/schema';
@@ -91,6 +97,47 @@ async function createPerson(
   };
 }
 
+/**
+ * Remove everything a previous demo run created.
+ *
+ * Scoped to the demo estates by name, so it cannot touch a real tenant that
+ * happens to share the database — and it wipes users last, since the estates it
+ * finds are what identify which users belong to the demo.
+ */
+async function resetDemoData(): Promise<void> {
+  const { EstateModel } = await import('@/modules/estate');
+  const estates = await EstateModel.find({ name: config.seed.estateName }, { _id: 1 }).lean();
+
+  if (estates.length === 0) {
+    console.log('  Nothing to reset.');
+    return;
+  }
+
+  const estateIds = estates.map((estate) => estate._id);
+  const memberships = await MembershipModel.find({ estateId: { $in: estateIds } }, { userId: 1 })
+    .lean();
+  const userIds = memberships.map((membership) => membership.userId);
+
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('Not connected.');
+
+  // Every tenant-scoped collection carries estateId, so one filter clears them
+  // all without needing to name each model.
+  const collections = await db.listCollections({}, { nameOnly: true }).toArray();
+  let removed = 0;
+
+  for (const { name } of collections) {
+    if (name === 'users') continue;
+    const result = await db.collection(name).deleteMany({ estateId: { $in: estateIds } });
+    removed += result.deletedCount;
+  }
+
+  removed += (await db.collection('estates').deleteMany({ _id: { $in: estateIds } })).deletedCount;
+  removed += (await db.collection('users').deleteMany({ _id: { $in: userIds } })).deletedCount;
+
+  console.log(`  Reset: removed ${removed} documents from ${estates.length} demo estate(s).`);
+}
+
 async function main(): Promise<void> {
   await connectToDatabase();
 
@@ -99,6 +146,8 @@ async function main(): Promise<void> {
   // happily create two accounts with the same email, which is precisely what
   // the identity design forbids.
   await syncIndexes();
+
+  if (process.argv.includes('--reset')) await resetDemoData();
 
   const slug = `palm-grove-${Date.now().toString(36)}`;
   const estate = await estateService.create({
@@ -262,6 +311,59 @@ async function main(): Promise<void> {
     location: 'Outside 12B',
   });
 
+  // --- Money ----------------------------------------------------------------
+  // Two fees on different bases, so the billing run exercises both the
+  // one-invoice-per-unit and one-invoice-per-member paths.
+  const dues = await feeCategoryService.create(context, {
+    code: 'dues',
+    name: 'Monthly estate dues',
+    description: 'Security, grounds and shared utilities.',
+    amount: 5_000_000,
+    frequency: 'monthly',
+    basis: 'property',
+  });
+
+  await feeCategoryService.create(context, {
+    code: 'waste',
+    name: 'Waste collection',
+    amount: 750_000,
+    frequency: 'monthly',
+    basis: 'property',
+  });
+
+  // One invoice already settled in cash, one still owing and one overdue, so
+  // every status on the finance screen has something behind it.
+  const settled = await invoiceService.create(context, {
+    membershipId: resident.membershipId,
+    lines: [{ feeCategoryId: dues._id.toHexString(), description: dues.name, unitAmount: dues.amount }],
+    dueAt: new Date(Date.now() - 30 * 86_400_000),
+  });
+  await invoiceService.issue(context, settled._id.toHexString());
+  await paymentService.recordManual(context, {
+    invoiceId: settled._id.toHexString(),
+    membershipId: resident.membershipId,
+    amount: dues.amount,
+    note: 'Bank transfer, reference 8841002',
+  });
+
+  const owing = await invoiceService.create(context, {
+    membershipId: resident.membershipId,
+    lines: [
+      { feeCategoryId: dues._id.toHexString(), description: dues.name, unitAmount: dues.amount },
+      { description: 'Waste collection', unitAmount: 750_000 },
+    ],
+    dueAt: new Date(Date.now() + 10 * 86_400_000),
+  });
+  await invoiceService.issue(context, owing._id.toHexString());
+
+  const late = await invoiceService.create(context, {
+    membershipId: resident.membershipId,
+    lines: [{ description: 'Gate repair levy', unitAmount: 1_200_000 }],
+    dueAt: new Date(Date.now() - 5 * 86_400_000),
+  });
+  await invoiceService.issue(context, late._id.toHexString());
+  await invoiceService.markOverdue(context);
+
   console.log(`\n  Estate: ${estate.name}  (${slug})`);
   console.log(`  Password for all accounts: ${PASSWORD}\n`);
   console.log('  Accounts');
@@ -275,8 +377,16 @@ async function main(): Promise<void> {
   console.log(`    plate          ABC-123-XY    (registered)`);
   console.log(`    plate          XYZ-999-ZZ    (blacklisted)`);
   console.log(`\n  ${overstaying.pass.visitorName} is already inside and overdue.\n`);
+  console.log('  Finance');
+  console.log(`    ${settled.number}  paid in full`);
+  console.log(`    ${owing.number}  ${formatNaira(owing.total)} due`);
+  console.log(`    ${late.number}  ${formatNaira(late.total)} overdue\n`);
 
   await shutdownIntegrations();
+}
+
+function formatNaira(minorUnits: number): string {
+  return `NGN ${(minorUnits / 100).toLocaleString()}`;
 }
 
 await main();

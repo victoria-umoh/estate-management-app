@@ -1067,3 +1067,116 @@ seeds inside the run.
 The resident portal — visitor passes, household, vehicles, payments — and the
 finance module.
 
+
+---
+
+## 2026-09-23T08:45Z — Phase 10: Money (fees, invoices, ledger, payments)
+
+### Delivered
+
+**Double-entry ledger** (`src/modules/finance/ledger.schema.ts`, `ledger.service.ts`)
+Append-only: `updateOne`, `updateMany`, `findOneAndUpdate`, `deleteOne` and
+`deleteMany` all throw at the ODM layer. A correction posts a reversing entry;
+history is never edited. `post()` refuses an unbalanced transaction, a
+single-sided one, a zero one, and fractional minor units. `verifyIntegrity()`
+reports whether total debits equal total credits — surfaced on the finance
+screen, because it is the figure that says whether every other figure can be
+trusted.
+
+**Invoices** (`invoice.service.ts`)
+draft → issued → partially-paid / paid / overdue / cancelled. A draft has no
+accounting effect; issuing is the separate act that posts AR debit / revenue
+credit, inside the same transaction as the status change. Cancelling reverses
+the posting and is refused once any payment exists — the correction there is a
+refund, since cancelling would erase the debt while the estate kept the cash.
+Line totals are computed once and stored, so changing a fee never restates
+invoices already sent.
+
+**Payments** (`payment.service.ts`, `src/integrations/payments/`)
+Paystack behind a `PaymentProvider` interface, with a mock that signs webhooks
+using the same HMAC-SHA512 scheme so the signature path is genuinely exercised
+rather than stubbed past. The pending row is written *before* the provider is
+called, so a payment taken while the browser is closing still has a row to
+attach to.
+
+**Billing run** (`src/jobs/billing-run.ts`, `pnpm job:billing`)
+Generates invoices for every recurring fee that falls due. The fee period is
+part of the invoice's unique index, so a retried run collides rather than
+double-charging. Failures are per-membership, not per-run. `pnpm job:overdue`
+flags arrears separately.
+
+**API** — `/api/v1/fees`, `/invoices`, `/invoices/:id/issue`, `/invoices/:id/cancel`,
+`/payments/initialize`, `/payments/verify`, `/payments/manual`, `/ledger`,
+`/me/invoices`, and `/api/webhooks/paystack` (raw body, outside the kernel).
+
+**UI** — `/admin/finance` (trial balance, invoices, fees) and `/my/payments`.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| Integer minor units (kobo) everywhere | Floating-point money accumulates error that only becomes visible once totals are large enough for someone to notice — the worst time to find it. |
+| Webhook re-verifies the amount against the provider API | A valid signature proves the message came from Paystack, not that the body was not replayed from a smaller charge. The webhook body's amount is never trusted. |
+| Webhook event id claimed under a unique index before any work | Providers retry, especially when something went wrong, so duplicate delivery is routine rather than exceptional. |
+| Browser-side confirmation is never trusted | The post-checkout redirect is a URL the payer controls. `/payments/verify` only looks the payment up and asks the provider; the webhook remains authoritative. The resident page says so in copy rather than leaving them to guess. |
+| `payment.verify`, not `payment.create`, gates manual cash entry | Recording cash credits an account on nothing but a person's word, and is the obvious route to writing off a debt quietly. |
+| Webhook returns 500 on a processing failure | A 500 makes Paystack retry. The alternative is acknowledging a payment we failed to record. |
+| Unsigned/forged webhook returns 401, not 400 | Nothing about our state should be inferable from the response. |
+
+### Bug found and fixed during verification
+
+**Residents could read every household's invoices.** `invoice.view` was doing
+double duty: residents hold it so they can see their own dues, but
+`GET /api/v1/invoices` treated it as an estate-wide read. A resident calling
+that route with no filter got every household's billing history.
+
+Found by exercising the API over HTTP as the seeded resident — the unit tests
+all passed, because each one asserted a permission it had itself chosen.
+
+Fixed by splitting the permission, following the `resident.viewNin` precedent:
+`invoice.view` is now the resident's own invoices, and `invoice.viewAll` gates
+the estate-wide list and `outstandingFor()`. Granted to chairman and finance
+officer only. Three regression tests added.
+
+Related: `/me/invoices` resolves the membership from the session and never
+accepts one from the request, so the resident page cannot be pointed at another
+household by changing one value in the browser. The ESLint layering rule caught
+the first version of that route calling repositories directly.
+
+### Also fixed
+
+**The demo seeder could only ever run once.** Demo accounts use fixed addresses
+(`admin@example.com`) which are unique platform-wide, so a second run died on a
+raw duplicate-key stack trace. Added `pnpm seed:demo --reset`, which clears the
+previous demo estate first — scoped by estate name, so it cannot touch a real
+tenant sharing the database.
+
+### Gates
+
+typecheck clean · lint clean · **629 tests passing** (34 new) · build clean ·
+shared First Load JS **103.9 kB**, unchanged — finance did not leak into the
+shared chunk, so the gate route still pays for none of it.
+
+### Verified over HTTP, not just in tests
+
+```
+ADMIN     ledger balanced = true | receivable 6,950,000 | cash 5,000,000
+          invoices INV-00003 overdue, INV-00002 issued, INV-00001 paid
+RESIDENT  own dues  3 invoices, 6,950,000 outstanding
+          /invoices FORBIDDEN    /ledger FORBIDDEN    /fees FORBIDDEN
+WEBHOOK   unsigned 401           forged signature 401
+```
+
+Billed 119,500 = collected 50,000 + outstanding 69,500.
+
+### Environment note
+
+Partway through this phase MongoDB Atlas began refusing connections from this
+machine. DNS resolves and all three shard nodes are reachable by name, but every
+one refuses TCP on 27017 — which is Atlas rejecting a non-allowlisted IP at the
+network layer. The egress IP is now `185.28.254.227`; it had been working
+25 minutes earlier, so something changed (VPN or DHCP).
+
+The preview was moved to the local replica set so it still runs. `.env.local`
+carries a clearly-marked temporary block; delete it once the IP is added under
+Atlas → Network Access, and un-comment the Atlas line above it.

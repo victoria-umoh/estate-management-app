@@ -115,7 +115,16 @@ export const PERMISSIONS = {
   FEE_UPDATE: 'fee.update',
   FEE_DELETE: 'fee.delete',
 
+  /** A resident's own invoices. Held by every resident. */
   INVOICE_VIEW: 'invoice.view',
+  /**
+   * Every invoice in the estate.
+   *
+   * Separate from `invoice.view` because residents hold that one to see their
+   * own dues — without this split, the estate-wide list would hand any resident
+   * every other household's billing history.
+   */
+  INVOICE_VIEW_ALL: 'invoice.viewAll',
   INVOICE_CREATE: 'invoice.create',
   INVOICE_CANCEL: 'invoice.cancel',
   INVOICE_EXPORT: 'invoice.export',

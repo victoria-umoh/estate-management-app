@@ -4,10 +4,18 @@
 "Next action" below and continue from there. It is updated at every phase
 boundary and whenever a decision is made that future work depends on.
 
-**Last updated:** 2026-09-18
-**Current phase:** 9 complete — security & identity UI, cookie sessions
-**Next action:** the resident portal (visitor passes, household, vehicles,
-payments) and the finance module. The estate admin screens follow.
+**Last updated:** 2026-09-23
+**Current phase:** 10 complete — fees, invoices, double-entry ledger, Paystack
+**Next action:** notifications and announcements (email + SMS adapters). That
+phase unblocks four things deferred earlier: email verification, password
+reset, tenant invitations and suspicious-login alerts. After it, the resident
+portal still needs visitor-pass creation, household and vehicles — a resident
+currently has only the digital ID and the payments screen.
+
+**Open:** MongoDB Atlas is refusing this machine's egress IP
+(`185.28.254.227`) at the network layer. The preview runs against the local
+replica set; `.env.local` carries a marked temporary block to remove once the
+IP is allowlisted under Atlas → Network Access.
 
 ---
 
@@ -87,7 +95,16 @@ payments) and the finance module. The estate admin screens follow.
 
 ## Phase 9 — Billing, dues, Paystack, ledger
 
-- [ ] (see plan)
+- [x] Double-entry ledger, append-only, balance enforced at post time
+- [x] Fee categories (monthly/quarterly/yearly/one-time, property or resident)
+- [x] Invoice lifecycle: draft → issue → paid / overdue / cancelled
+- [x] Paystack provider behind an interface, with a signing mock
+- [x] Webhook: raw-body HMAC, constant-time compare, idempotent, re-verified
+- [x] Manual payment recording behind `payment.verify`
+- [x] Billing run and overdue sweep jobs
+- [x] API routes and the `/admin/finance` + `/my/payments` screens
+- [x] 34 tests, including signature rejection and duplicate delivery
+- [x] Fixed: `invoice.view` leaked every household's invoices to residents
 
 ## Phase 10 — Notifications & announcements
 
