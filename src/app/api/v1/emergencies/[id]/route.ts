@@ -2,13 +2,22 @@ import { z } from 'zod';
 import { defineRoute } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
 import { emergencyService } from '@/modules/emergency';
+import { meService } from '@/modules/me';
 
+/**
+ * Respond to an emergency.
+ *
+ * The responder is the caller, resolved from the session. It used to be taken
+ * from the request body, which was wrong twice over: it let a client claim
+ * someone else had attended an incident — the one record that matters most
+ * afterwards — and it forced the browser to know its own membership id, which
+ * it has no reliable way to learn.
+ */
 const ActionDto = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('acknowledge'), responderMembershipId: z.string().min(1) }),
+  z.object({ action: z.literal('acknowledge') }),
   z.object({ action: z.literal('responding') }),
   z.object({
     action: z.literal('resolve'),
-    responderMembershipId: z.string().min(1),
     outcome: z.string().trim().min(2).max(2000),
     falseAlarm: z.boolean().optional(),
   }),
@@ -25,7 +34,7 @@ export const POST = defineRoute({
         const emergency = await emergencyService.acknowledge(
           ctx,
           params.id,
-          body.responderMembershipId,
+          await meService.membershipId(ctx),
         );
         return { status: emergency.status, responseTimeSeconds: emergency.responseTimeSeconds };
       }
@@ -37,7 +46,7 @@ export const POST = defineRoute({
         const emergency = await emergencyService.resolve(
           ctx,
           params.id,
-          body.responderMembershipId,
+          await meService.membershipId(ctx),
           {
             outcome: body.outcome,
             ...(body.falseAlarm !== undefined ? { falseAlarm: body.falseAlarm } : {}),

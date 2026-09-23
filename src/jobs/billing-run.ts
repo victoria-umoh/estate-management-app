@@ -127,9 +127,7 @@ export async function runBilling(on = new Date(), force = false): Promise<Billin
         try {
           const invoice = await invoiceService.create(context, {
             membershipId: membership._id.toHexString(),
-            ...(membership.propertyId
-              ? { propertyId: membership.propertyId.toHexString() }
-              : {}),
+            ...(membership.propertyId ? { propertyId: membership.propertyId.toHexString() } : {}),
             lines: [
               {
                 feeCategoryId: category._id.toHexString(),

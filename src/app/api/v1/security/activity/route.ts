@@ -7,6 +7,7 @@ export const GET = defineRoute({
   permissions: [PERMISSIONS.GATE_LOG_VIEW],
   query: z.object({
     gateId: z.string().optional(),
+    direction: z.enum(['in', 'out']).optional(),
     subject: z.enum(['resident', 'vehicle', 'visitor', 'exit-pass', 'temporary-pass']).optional(),
     admitted: z
       .enum(['true', 'false'])

@@ -1,26 +1,61 @@
 import { z } from 'zod';
 import { defineRoute } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
-import { emergencyService } from '@/modules/emergency';
+import { emergencyRepository, emergencyService, type EmergencyDoc } from '@/modules/emergency';
+
+/**
+ * Identity is returned as membership ids, not names.
+ *
+ * Resolving a name means a lookup per alert on the screen that has to render
+ * fastest in the building. The caller can resolve the handful of ids it needs;
+ * this path stays a single indexed read.
+ */
+function project(emergency: EmergencyDoc) {
+  return {
+    id: emergency._id.toHexString(),
+    reference: emergency.reference,
+    type: emergency.type,
+    status: emergency.status,
+    description: emergency.description,
+    location: emergency.location,
+    coordinates: emergency.coordinates,
+    contactPhone: emergency.contactPhone,
+    propertyId: emergency.propertyId?.toHexString() ?? null,
+    triggeredByMembershipId: emergency.triggeredByMembershipId.toHexString(),
+    triggeredAt: emergency.createdAt,
+    acknowledgedAt: emergency.acknowledgedAt,
+    acknowledgedByMembershipId: emergency.acknowledgedByMembershipId?.toHexString() ?? null,
+    responseTimeSeconds: emergency.responseTimeSeconds,
+    respondingAt: emergency.respondingAt ?? null,
+    resolvedAt: emergency.resolvedAt ?? null,
+    resolvedByMembershipId: emergency.resolvedByMembershipId?.toHexString() ?? null,
+    outcome: emergency.outcome ?? null,
+  };
+}
 
 export const GET = defineRoute({
   permissions: [PERMISSIONS.EMERGENCY_VIEW],
-  handler: async (ctx) => {
-    const active = await emergencyService.listActive(ctx);
+  query: z.object({
+    // Optional, and active-only remains the default. A life-safety screen must
+    // show live alerts without anyone first choosing a filter; history is the
+    // deliberate request, not the other way round.
+    status: z
+      .enum(['triggered', 'acknowledged', 'responding', 'resolved', 'false-alarm'])
+      .optional(),
+  }),
+  handler: async (ctx, { query }) => {
+    if (!query.status) {
+      const active = await emergencyService.listActive(ctx);
+      return active.map(project);
+    }
 
-    return active.map((emergency) => ({
-      id: emergency._id.toHexString(),
-      reference: emergency.reference,
-      type: emergency.type,
-      status: emergency.status,
-      description: emergency.description,
-      location: emergency.location,
-      coordinates: emergency.coordinates,
-      contactPhone: emergency.contactPhone,
-      triggeredAt: emergency.createdAt,
-      acknowledgedAt: emergency.acknowledgedAt,
-      responseTimeSeconds: emergency.responseTimeSeconds,
-    }));
+    const matching = await emergencyRepository.findMany(
+      ctx,
+      { status: query.status },
+      { sort: { createdAt: -1 } },
+    );
+
+    return matching.map(project);
   },
 });
 

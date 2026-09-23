@@ -35,17 +35,12 @@ export class FeeCategoryService {
   async list(context: RequestContext, includeInactive = false): Promise<FeeCategoryDoc[]> {
     assertCan(context, PERMISSIONS.FEE_VIEW);
 
-    return feeCategoryRepository.findMany(
-      context,
-      includeInactive ? {} : { active: true },
-      { sort: { name: 1 } },
-    );
+    return feeCategoryRepository.findMany(context, includeInactive ? {} : { active: true }, {
+      sort: { name: 1 },
+    });
   }
 
-  async create(
-    context: RequestContext,
-    input: CreateFeeCategoryInput,
-  ): Promise<FeeCategoryDoc> {
+  async create(context: RequestContext, input: CreateFeeCategoryInput): Promise<FeeCategoryDoc> {
     assertCan(context, PERMISSIONS.FEE_CREATE);
 
     // Rejected here as well as by the schema so the caller gets a 422 naming the

@@ -66,7 +66,7 @@ export default function FinancePage() {
   const load = useCallback(async () => {
     try {
       const [invoiceResult, ledgerResult, feeResult] = await Promise.all([
-        api.get<{ items: Invoice[] }>('/invoices?limit=25'),
+        api.getPage<Invoice>('/invoices?limit=25'),
         api.get<LedgerView>('/ledger'),
         api.get<Fee[]>('/fees'),
       ]);
@@ -246,9 +246,7 @@ function StatTile({
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-xl leading-none font-semibold tabular-nums">
-            {value ?? '—'}
-          </p>
+          <p className="truncate text-xl leading-none font-semibold tabular-nums">{value ?? '—'}</p>
           <p className="text-muted-foreground mt-1 truncate text-xs">{label}</p>
         </div>
       </CardContent>

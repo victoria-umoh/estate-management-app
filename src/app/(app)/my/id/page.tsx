@@ -40,12 +40,9 @@ export default function DigitalIdPage() {
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const membershipId = localStorage.getItem('membershipId');
-      if (!membershipId) {
-        setFailed(true);
-        return;
-      }
-
+      // The membership comes from the session. This used to read
+      // localStorage, which nothing ever wrote, so the card never loaded.
+      const { membershipId } = await api.get<{ membershipId: string }>('/me/profile');
       const result = await api.post<IdCard>('/me/id-card', { membershipId });
       setCard(result);
 

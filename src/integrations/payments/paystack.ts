@@ -35,10 +35,7 @@ interface PaystackTransaction {
 export class PaystackProvider implements PaymentProvider {
   readonly name = 'paystack';
 
-  private async request<T>(
-    path: string,
-    init: RequestInit = {},
-  ): Promise<PaystackEnvelope<T>> {
+  private async request<T>(path: string, init: RequestInit = {}): Promise<PaystackEnvelope<T>> {
     let response: Response;
 
     try {
@@ -139,8 +136,7 @@ export class PaystackProvider implements PaymentProvider {
     const supplied = Buffer.from(signatureHeader, 'utf8');
     const computed = Buffer.from(expected, 'utf8');
 
-    const valid =
-      supplied.length === computed.length && timingSafeEqual(supplied, computed);
+    const valid = supplied.length === computed.length && timingSafeEqual(supplied, computed);
 
     if (!valid) {
       log.warn('rejected webhook with an invalid signature');

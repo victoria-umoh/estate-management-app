@@ -73,6 +73,7 @@ export class MovementService {
     context: RequestContext,
     filters: {
       gateId?: string;
+      direction?: MovementDoc['direction'];
       subject?: MovementDoc['subject'];
       admitted?: boolean;
       from?: Date;
@@ -84,6 +85,9 @@ export class MovementService {
 
     const filter: Record<string, unknown> = {};
     if (filters.gateId) filter.gateId = new Types.ObjectId(filters.gateId);
+    // Filtered in the query rather than by the caller: narrowing a page of
+    // mixed entries and exits client-side thins the page instead of filling it.
+    if (filters.direction) filter.direction = filters.direction;
     if (filters.subject) filter.subject = filters.subject;
     if (filters.admitted !== undefined) filter.admitted = filters.admitted;
     if (filters.from || filters.to) {

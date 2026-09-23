@@ -3,14 +3,7 @@ import { defineRoute, paginated } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
 import { invoiceService } from '@/modules/finance';
 
-const STATUSES = [
-  'draft',
-  'issued',
-  'partially-paid',
-  'paid',
-  'overdue',
-  'cancelled',
-] as const;
+const STATUSES = ['draft', 'issued', 'partially-paid', 'paid', 'overdue', 'cancelled'] as const;
 
 export const GET = defineRoute({
   permissions: [PERMISSIONS.INVOICE_VIEW_ALL],

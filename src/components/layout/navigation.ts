@@ -37,6 +37,15 @@ export interface NavItem {
   permissions?: string[];
   /** Live count badge, resolved by the shell. */
   badgeKey?: 'pendingApprovals' | 'openIncidents' | 'activeEmergencies' | 'unreadNotifications';
+  /**
+   * Named in the product but not yet built.
+   *
+   * Kept in this list rather than deleted, because the navigation doubles as
+   * the statement of what this product is. Hidden from the rendered menu by
+   * `visibleNavigation`, so nobody clicks through to a 404 — a menu that
+   * promises screens which do not exist is worse than a shorter menu.
+   */
+  planned?: boolean;
 }
 
 export interface NavSection {
@@ -49,12 +58,15 @@ export const NAVIGATION: NavSection[] = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: Home },
-      { label: 'Announcements', href: '/announcements', icon: Megaphone },
+      { label: 'Announcements', href: '/announcements', icon: Megaphone,
+        planned: true,
+      },
       {
         label: 'Notifications',
         href: '/notifications',
         icon: Bell,
         badgeKey: 'unreadNotifications',
+        planned: true,
       },
     ],
   },
@@ -80,6 +92,7 @@ export const NAVIGATION: NavSection[] = [
         href: '/my/exit-passes',
         icon: FileText,
         permissions: [PERMISSIONS.EXIT_PASS_VIEW],
+        planned: true,
       },
       {
         label: 'Dues & payments',
@@ -167,6 +180,7 @@ export const NAVIGATION: NavSection[] = [
         href: '/admin/reports',
         icon: BarChart3,
         permissions: [PERMISSIONS.REPORT_VIEW],
+        planned: true,
       },
     ],
   },
@@ -195,12 +209,13 @@ export const NAVIGATION: NavSection[] = [
   },
 ];
 
-/** Drop sections and items the viewer has no permission to see. */
+/** Drop sections and items the viewer has no permission to see, and anything not yet built. */
 export function visibleNavigation(permissions: ReadonlySet<string>): NavSection[] {
   const allowed = (item: NavItem) =>
-    !item.permissions ||
-    permissions.has('*') ||
-    item.permissions.some((permission) => permissions.has(permission));
+    !item.planned &&
+    (!item.permissions ||
+      permissions.has('*') ||
+      item.permissions.some((permission) => permissions.has(permission)));
 
   return NAVIGATION.map((section) => ({
     ...section,

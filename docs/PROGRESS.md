@@ -5,17 +5,24 @@
 boundary and whenever a decision is made that future work depends on.
 
 **Last updated:** 2026-09-23
-**Current phase:** 10 complete — fees, invoices, double-entry ledger, Paystack
-**Next action:** notifications and announcements (email + SMS adapters). That
-phase unblocks four things deferred earlier: email verification, password
-reset, tenant invitations and suspicious-login alerts. After it, the resident
-portal still needs visitor-pass creation, household and vehicles — a resident
-currently has only the digital ID and the payments screen.
+**Current phase:** 11 complete — the application caught up with the API
 
-**Open:** MongoDB Atlas is refusing this machine's egress IP
-(`185.28.254.227`) at the network layer. The preview runs against the local
-replica set; `.env.local` carries a marked temporary block to remove once the
-IP is allowlisted under Atlas → Network Access.
+**The bar changed this phase.** A phase is no longer done when the service works
+and the tests are green. It is done when the screen loads, signed in, as the
+role that uses it — verified by `pnpm smoke`, which drives every screen and
+endpoint over HTTP as all three roles. Ten phases were reported complete under
+the old bar while 18 of 24 navigation links went to screens that did not exist.
+
+**Next action:** notifications and announcements (email + SMS adapters). That
+unblocks four things deferred earlier for want of a send path: email
+verification, password reset, tenant invitations and dunning.
+
+**Then:** exit passes and temporary passes — the only spec features with
+permissions defined and no code behind them at all.
+
+**Open decisions for the owner** (both recorded in OUTPUT_LOGS):
+- Residents can read the estate directory; is that intended?
+- Residents can read any incident's detail, not only their own.
 
 ---
 
@@ -106,7 +113,22 @@ IP is allowlisted under Atlas → Network Access.
 - [x] 34 tests, including signature rejection and duplicate delivery
 - [x] Fixed: `invoice.view` leaked every household's invoices to residents
 
-## Phase 10 — Notifications & announcements
+## Phase 10 — Money: fees, invoices, ledger, Paystack
+
+- [x] Complete — see OUTPUT_LOGS 2026-09-23T08:45Z
+
+## Phase 11 — Application catch-up
+
+- [x] 17 screens built; every nav link now resolves or is flagged `planned`
+- [x] 14 missing API routes exposed (incident + service-request lifecycles,
+      role update, the whole `/me/*` family)
+- [x] `MeService` — caller identity resolved from the session, never the body
+- [x] `api.getPage()` and idempotency-key support in the browser client
+- [x] Fixed: finance screen read the wrong response shape
+- [x] Fixed: two screens depended on a localStorage key nothing ever wrote
+- [x] `pnpm smoke` — 47 checks across screens, endpoints and permission guards
+
+## Phase 12 — Notifications & announcements
 
 - [ ] (see plan)
 

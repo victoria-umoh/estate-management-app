@@ -28,6 +28,21 @@ export const ListPropertiesDto = z.object({
   occupancyStatus: z
     .enum(['vacant', 'owner-occupied', 'tenant-occupied', 'under-construction', 'unavailable'])
     .optional(),
+  type: z
+    .enum([
+      'detached',
+      'semi-detached',
+      'terrace',
+      'duplex',
+      'bungalow',
+      'apartment',
+      'studio',
+      'shop',
+      'office',
+      'land',
+      'other',
+    ])
+    .optional(),
   street: z.string().trim().max(120).optional(),
   search: z.string().trim().max(60).optional(),
   page: z.coerce.number().int().positive().default(1),

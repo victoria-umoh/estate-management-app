@@ -237,9 +237,9 @@ describe('invoices', () => {
 
   it('refuses to issue twice', async () => {
     const invoice = await issuedInvoice();
-    await expect(
-      invoiceService.issue(admin(), invoice._id.toHexString()),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(invoiceService.issue(admin(), invoice._id.toHexString())).rejects.toMatchObject({
+      statusCode: 409,
+    });
   });
 
   it('reverses the ledger when cancelled', async () => {
@@ -261,9 +261,9 @@ describe('invoices', () => {
       note: 'Cash',
     });
 
-    await expect(
-      invoiceService.cancel(admin(), invoice._id.toHexString(), 'x'),
-    ).rejects.toThrow(/Refund it instead/);
+    await expect(invoiceService.cancel(admin(), invoice._id.toHexString(), 'x')).rejects.toThrow(
+      /Refund it instead/,
+    );
   });
 
   it('marks overdue invoices without moving the ledger', async () => {
@@ -290,10 +290,7 @@ describe('invoices', () => {
       invoiceService.list(ctx(ESTATE_A, [PERMISSIONS.INVOICE_VIEW]), {}),
     ).rejects.toMatchObject({ statusCode: 403 });
 
-    const allowed = await invoiceService.list(
-      ctx(ESTATE_A, [PERMISSIONS.INVOICE_VIEW_ALL]),
-      {},
-    );
+    const allowed = await invoiceService.list(ctx(ESTATE_A, [PERMISSIONS.INVOICE_VIEW_ALL]), {});
     expect(allowed.items).toHaveLength(1);
   });
 

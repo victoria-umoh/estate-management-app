@@ -127,6 +127,10 @@ movementSchema.index({ estateId: 1, gateId: 1, occurredAt: -1 });
 movementSchema.index({ estateId: 1, subject: 1, subjectId: 1, occurredAt: -1 });
 // Denied entries, which is what a supervisor reviews at shift change.
 movementSchema.index({ estateId: 1, admitted: 1, occurredAt: -1 });
+// Entries or exits alone. Without this the direction filter rides the
+// estate+occurredAt index and discards non-matching rows after reading them,
+// which is tolerable on a recent page and not on a wide date range.
+movementSchema.index({ estateId: 1, direction: 1, occurredAt: -1 });
 
 export const MovementModel: Model<MovementDoc> =
   (mongoose.models.Movement as Model<MovementDoc>) ??

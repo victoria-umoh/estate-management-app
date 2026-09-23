@@ -59,10 +59,31 @@ async function refreshSession(): Promise<boolean> {
   return refreshInFlight;
 }
 
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+}
+
+/** A page of results, with the envelope's pagination meta kept intact. */
+export interface Page<T> {
+  items: T[];
+  meta: PageMeta;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit & { retryOnUnauthorised?: boolean } = {},
 ): Promise<T> {
+  return (await requestWithMeta<T>(path, init)).data;
+}
+
+async function requestWithMeta<T>(
+  path: string,
+  init: RequestInit & { retryOnUnauthorised?: boolean } = {},
+): Promise<{ data: T; meta: Record<string, unknown> | undefined }> {
   const { retryOnUnauthorised = true, ...options } = init;
 
   const response = await fetch(`/api/v1${path}`, {
@@ -75,12 +96,12 @@ async function request<T>(
 
   if (response.status === 401 && retryOnUnauthorised) {
     if (await refreshSession()) {
-      return request<T>(path, { ...init, retryOnUnauthorised: false });
+      return requestWithMeta<T>(path, { ...init, retryOnUnauthorised: false });
     }
   }
 
   // 204 carries no body by design.
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) return { data: undefined as T, meta: undefined };
 
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
 
@@ -91,14 +112,47 @@ async function request<T>(
     );
   }
 
-  return body.data as T;
+  return { data: body.data as T, meta: body.meta };
 }
+
+const DEFAULT_META: PageMeta = {
+  page: 1,
+  limit: 0,
+  total: 0,
+  totalPages: 1,
+  hasNextPage: false,
+};
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+
+  /**
+   * A paginated GET, keeping the envelope's `meta`.
+   *
+   * `get` returns only `data`, which for a paginated route is the bare array —
+   * so a caller using it has no total and no way to know whether another page
+   * exists. Screens were working around that by inferring "there is more" from
+   * a full page coming back, which costs a wasted request at every exact
+   * multiple of the page size and can never show a total.
+   */
+  getPage: async <T>(path: string): Promise<Page<T>> => {
+    const { data, meta } = await requestWithMeta<T[]>(path);
+    return { items: data ?? [], meta: { ...DEFAULT_META, ...(meta as Partial<PageMeta>) } };
+  },
+
+  post: <T>(path: string, body?: unknown, options?: { idempotencyKey?: string }) =>
+    request<T>(path, {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+      // Routes declaring `idempotent: true` read this header. Without it a
+      // retry after a timeout is processed as a second, separate request.
+      ...(options?.idempotencyKey
+        ? { headers: { 'idempotency-key': options.idempotencyKey } }
+        : {}),
+    }),
+
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
+
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };

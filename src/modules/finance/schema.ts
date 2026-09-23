@@ -90,13 +90,7 @@ export const FeeCategoryModel: Model<FeeCategoryDoc> =
 // ---------------------------------------------------------------------------
 
 export type InvoiceStatus =
-  | 'draft'
-  | 'issued'
-  | 'partially-paid'
-  | 'paid'
-  | 'overdue'
-  | 'cancelled'
-  | 'written-off';
+  'draft' | 'issued' | 'partially-paid' | 'paid' | 'overdue' | 'cancelled' | 'written-off';
 
 export interface InvoiceLine {
   feeCategoryId?: Types.ObjectId | null;

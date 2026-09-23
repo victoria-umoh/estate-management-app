@@ -97,9 +97,7 @@ export class PaymentService {
         ? { callbackUrl: config.payments.paystack.callbackUrl }
         : {}),
       // Settles to the estate rather than the platform.
-      ...(estate?.paystackSubaccountCode
-        ? { subaccountCode: estate.paystackSubaccountCode }
-        : {}),
+      ...(estate?.paystackSubaccountCode ? { subaccountCode: estate.paystackSubaccountCode } : {}),
       metadata: { invoiceNumber: invoice.number, estateId: context.estateId },
     });
 

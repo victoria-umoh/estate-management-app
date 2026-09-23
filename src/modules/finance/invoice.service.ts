@@ -234,9 +234,7 @@ export class InvoiceService {
       context,
       {
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.membershipId
-          ? { membershipId: new Types.ObjectId(filters.membershipId) }
-          : {}),
+        ...(filters.membershipId ? { membershipId: new Types.ObjectId(filters.membershipId) } : {}),
         ...(filters.propertyId ? { propertyId: new Types.ObjectId(filters.propertyId) } : {}),
       },
       pagination,
@@ -259,10 +257,7 @@ export class InvoiceService {
   }
 
   /** The caller's own invoices. Needs no estate-wide permission. */
-  async listForCaller(
-    context: RequestContext,
-    pagination: { page?: number; limit?: number } = {},
-  ) {
+  async listForCaller(context: RequestContext, pagination: { page?: number; limit?: number } = {}) {
     return this.listForMember(context, await this.callerMembershipId(context), pagination);
   }
 

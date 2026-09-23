@@ -1180,3 +1180,137 @@ network layer. The egress IP is now `185.28.254.227`; it had been working
 The preview was moved to the local replica set so it still runs. `.env.local`
 carries a clearly-marked temporary block; delete it once the IP is added under
 Atlas → Network Access, and un-comment the Atlas line above it.
+
+---
+
+## 2026-09-23T10:00Z — Phase 11: Closing the gap between the API and the app
+
+### Why this phase existed
+
+An audit of the running app against its own navigation found the reported
+progress was wrong. The backend was roughly where I said it was; the application
+was not:
+
+| | Built | Promised |
+|---|---|---|
+| App screens | 6 | 24 in the nav → **18 dead links** |
+| Permissions enforced | 68 | 120 declared → **52 gating nothing** |
+| Tests | 629 passing | all backend; **zero exercised a screen** |
+
+Ten phases had been reported complete on the strength of "the service can do it
+and the tests are green". The bar was wrong. A user experiences this product
+through the UI, and most of the UI did not exist.
+
+### Built — 17 screens
+
+Residents (list + detail, approve/reject, audited NIN reveal) · Properties
+(list + detail, occupancy history, transfer) · Vehicles (list, blacklist) ·
+Incidents (list + detail) · Service requests · Gate activity · Emergencies ·
+Audit trail · Roles · Estate settings · My visitors · My household ·
+My property · My vehicles.
+
+Built in parallel by five subagents against a shared brief, with strict file
+ownership so no two could touch the same file.
+
+### Built — 14 API routes that were missing
+
+The subagents' most valuable output was not the screens; it was discovering that
+**services implemented full lifecycles that had never been exposed over HTTP**.
+`incidentService` had assign, setStatus, resolve, close, escalate and comments —
+all with permission checks and audit records already written, none reachable.
+Same for service requests. The screens could not have worked no matter how they
+were built.
+
+Added: incident detail + assign/status/resolve/escalate/close/comments, service
+request detail + assign/status/resolve/close, `PATCH|DELETE /roles/:id`, and the
+`/me/*` family (profile, property, vehicles, household, visitors).
+
+### Bugs found by driving the app rather than testing the services
+
+**1. The finance screen was broken.** It read
+`api.get<{items: Invoice[]}>('/invoices')`, but `paginated()` puts the array
+directly in `data`. Shipped last phase, verified over curl, never once loaded in
+a browser. Two subagents caught it independently.
+
+**2. `meta` was unreachable by any client.** `api.get` returned only `data`, so
+`page`/`total`/`hasNextPage` were discarded. Every list screen was inferring
+"there is more" from a full page coming back — a wasted request at every exact
+multiple of the page size, and no totals anywhere. Added `api.getPage()`.
+
+**3. Two screens depended on a `localStorage` key nothing ever wrote.** The
+digital ID card and the emergency responder actions both read
+`localStorage.getItem('membershipId')`. Nothing in the codebase ever set it, so
+the ID card never loaded and the emergency actions were permanently disabled.
+
+The fix was not to write the key. `POST /emergencies/:id` was taking
+`responderMembershipId` from the request body — which let a client claim someone
+else had attended an emergency, the one record that matters most afterwards.
+The responder is now resolved from the session, and the browser no longer needs
+to know its own membership id at all.
+
+**4. No idempotency key could be sent.** Routes declaring `idempotent: true`
+read an `idempotency-key` header that `api.post` had no way to set, so a retried
+transfer or payment after a timeout was processed as a second request.
+
+### The structural fix: `/me/*` and `MeService`
+
+The invoice leak last phase, the emergency responder field, and the phantom
+`membershipId` were three faces of one mistake: **letting the client say who it
+is**. `MeService` is now the single place that answers it, from the session,
+and every resident-facing route goes through it. The underlying services keep
+their own `assertMayActFor` checks — this is a second line, not a replacement.
+
+### Navigation now tells the truth
+
+Four items (Announcements, Notifications, Exit passes, Reports) have no backend
+at all. Rather than delete them — the nav doubles as the statement of what this
+product is — they carry a `planned` flag and are filtered out of the rendered
+menu. Nobody clicks through to a 404, and the intent is still recorded.
+
+### `pnpm smoke` — the check that was missing
+
+A harness that signs in as each of the three roles and drives **every screen
+over HTTP with a real session cookie**, plus every GET endpoint, plus the
+permission and webhook regression guards.
+
+This is the gate that would have caught all four bugs above, and the finance
+leak last phase. It is now the bar for "done": not "the service can do it" but
+"the screen loads, signed in, as the role that uses it".
+
+```
+Screens     20/20 ok      Endpoints   21/21 ok
+Refused      4/4  ok      Webhook      2/2  ok
+```
+
+Note `client: 'web'` on login is what sets the session cookies; without it only
+bearer tokens come back. The first version of the harness missed this and
+reported all 20 screens as broken — a harness bug, not an app bug, but a useful
+reminder that a red result deserves the same scepticism as a green one.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| Actor identity always from the session, never the body | Three separate bugs this phase traced to the client asserting who it was. |
+| `DELETE` closes an incident, it does not delete one | An incident is the record a dispute is answered with. |
+| Emergency identity fields return ids, not names | Resolving names needs a per-alert join, and that does not belong on a life-safety hot path. |
+| Unbuilt nav items flagged, not deleted | The nav is also the product's statement of intent; a 404 is worse than a shorter menu. |
+| Added `{estateId, direction, occurredAt}` index | The new direction filter otherwise scans and discards, fine on a recent page and not on a date range. |
+
+### Open questions for the owner
+
+**Residents can read the estate directory** (`/residents` → names, categories,
+unit numbers, no contact details) because the homeowner role holds
+`resident.view` for tenant management. Defensible as a community directory, but
+it is the same permission the gate uses. The smoke test now guards the boundary —
+it fails if that projection ever grows a phone number or identity field.
+
+**Residents can read any incident's detail**, not only their own, because the
+resident role holds `incident.view`. The comment threads are correctly scoped
+(reporter-or-staff); only the detail read inherits this. An RBAC decision, not a
+routing one.
+
+### Gates
+
+typecheck · lint · 629 tests · build · bundle budget (shared First Load JS
+unchanged at **103.9 kB**) · **`pnpm smoke` 47/47**.
