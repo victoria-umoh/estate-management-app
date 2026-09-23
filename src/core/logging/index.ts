@@ -23,7 +23,37 @@ export { REDACT_PATHS } from './redact';
 let rootLogger: Logger | undefined;
 
 function getRootLogger(): Logger {
-  rootLogger ??= pino({
+  rootLogger ??= buildLogger();
+  return rootLogger;
+}
+
+/**
+ * Build the logger, falling back to JSON if the pretty transport will not load.
+ *
+ * `pino-pretty` runs in a worker thread, and inside Next's bundled server graph
+ * pino cannot resolve the target — it throws during construction.
+ * `getRootLogger` is called from bootstrap, which the route kernel runs on the
+ * first request after every recompile, so the throw surfaced as a 500 on
+ * whichever route happened to be first. Roughly one request per compile cycle
+ * failed for no reason a reader could see.
+ *
+ * A preference about log formatting must never be able to take the request path
+ * down. If the transport will not build, log JSON and say so once.
+ */
+function buildLogger(): Logger {
+  try {
+    return pino(loggerOptions(config.observability.logPretty));
+  } catch {
+    // Deliberately console: the logger is what failed to build.
+    console.warn(
+      'LOG_PRETTY is set but pino-pretty could not be loaded here, so logs will be JSON.',
+    );
+    return pino(loggerOptions(false));
+  }
+}
+
+function loggerOptions(pretty: boolean): pino.LoggerOptions {
+  return {
     level: config.observability.logLevel,
 
     redact: {
@@ -56,7 +86,7 @@ function getRootLogger(): Logger {
 
     timestamp: pino.stdTimeFunctions.isoTime,
 
-    ...(config.observability.logPretty
+    ...(pretty
       ? {
           transport: {
             target: 'pino-pretty',
@@ -68,8 +98,7 @@ function getRootLogger(): Logger {
           },
         }
       : {}),
-  });
-  return rootLogger;
+  };
 }
 
 /**

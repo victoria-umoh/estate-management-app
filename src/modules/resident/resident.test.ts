@@ -33,7 +33,10 @@ function ctx(permissions: string[], estateId = ESTATE_A): RequestContext {
   };
 }
 
+/** The directory permission every resident holds. */
 const viewer = () => ctx([PERMISSIONS.RESIDENT_VIEW]);
+/** Staff, who may read a full record including contact details. */
+const staffViewer = () => ctx([PERMISSIONS.RESIDENT_VIEW, PERMISSIONS.RESIDENT_VIEW_ALL]);
 const approver = () => ctx([PERMISSIONS.RESIDENT_VIEW, PERMISSIONS.RESIDENT_APPROVE]);
 const ninViewer = () => ctx([PERMISSIONS.RESIDENT_VIEW, PERMISSIONS.RESIDENT_VIEW_NIN]);
 
@@ -155,7 +158,7 @@ describe('directory listing', () => {
 describe('resident detail', () => {
   it('includes contact details but masks the NIN', async () => {
     const { membershipId } = await makeResident({ withNin: true });
-    const detail = await residentService.detail(viewer(), membershipId);
+    const detail = await residentService.detail(staffViewer(), membershipId);
 
     expect(detail.email).toContain('@');
     expect(detail.ninMasked).toBe('•••••••8911');
@@ -164,7 +167,25 @@ describe('resident detail', () => {
 
   it('reports no NIN when none is on record', async () => {
     const { membershipId } = await makeResident({ withNin: false });
-    expect((await residentService.detail(viewer(), membershipId)).ninMasked).toBeNull();
+    expect((await residentService.detail(staffViewer(), membershipId)).ninMasked).toBeNull();
+  });
+
+  /**
+   * The directory permission is not enough to read a full record.
+   *
+   * `resident.view` is held by every resident so the directory works. It used
+   * to gate this too, which meant any resident could read another household's
+   * email, phone, date of birth, masked NIN and emergency contact — the third
+   * time in this codebase that one permission was doing two jobs.
+   */
+  it('refuses a stranger\u2019s record to the directory permission alone', async () => {
+    const { membershipId } = await makeResident({ withNin: true });
+
+    // A 404, not a 403: confirming the membership exists is itself a
+    // disclosure in a directory of this kind.
+    await expect(residentService.detail(viewer(), membershipId)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 
   it('reports another estate resident as not found', async () => {

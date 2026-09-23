@@ -3,12 +3,13 @@ import type { PaginatedResult } from '@/core/db';
 import { decryptField } from '@/core/crypto';
 import { NotFoundError } from '@/core/errors';
 import { events } from '@/core/events';
-import { PERMISSIONS, assertCan } from '@/core/rbac';
+import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
 import { membershipRepository } from '@/modules/membership/repository';
 import { MembershipModel, type MembershipDoc } from '@/modules/membership/schema';
 import { propertyOccupancyRepository, propertyRepository } from '@/modules/property';
+import { meService } from '@/modules/me';
 import { userRepository } from '@/modules/user/repository';
 import { UserModel, type UserDoc } from '@/modules/user/schema';
 import type { GateIdentity, ResidentDetail, ResidentListItem } from './types';
@@ -84,10 +85,32 @@ export class ResidentService {
     };
   }
 
+  /**
+   * A resident's full record.
+   *
+   * Carries contact details, so it needs more than the directory permission
+   * every resident holds. Without `resident.viewAll` the caller may read only
+   * their own record and those of people at the same address — which is what a
+   * household head needs to manage their tenants, and no more.
+   *
+   * A record outside that is a 404 rather than a 403: confirming a membership
+   * exists is itself a disclosure in a directory this size.
+   */
   async detail(context: RequestContext, membershipId: string): Promise<ResidentDetail> {
     assertCan(context, PERMISSIONS.RESIDENT_VIEW);
 
     const membership = await membershipRepository.findByIdOrFail(context, membershipId);
+
+    if (!can(context, PERMISSIONS.RESIDENT_VIEW_ALL)) {
+      const own = await meService.membership(context).catch(() => null);
+
+      const isSelf = own?._id.equals(membership._id) ?? false;
+      const sameProperty = Boolean(
+        own?.propertyId && membership.propertyId && own.propertyId.equals(membership.propertyId),
+      );
+
+      if (!isSelf && !sameProperty) throw new NotFoundError('Resident');
+    }
     const user = await userRepository.findById(membership.userId);
     if (!user) throw new NotFoundError('Resident');
 

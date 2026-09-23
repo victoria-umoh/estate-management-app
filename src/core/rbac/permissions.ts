@@ -17,7 +17,20 @@
  */
 export const PERMISSIONS = {
   // --- Residents & identity -------------------------------------------------
+  /** The estate directory: names, codes, unit numbers. Held by every resident. */
   RESIDENT_VIEW: 'resident.view',
+  /**
+   * A resident's full record, including contact details.
+   *
+   * Separate from `resident.view` for the third time in this codebase, after
+   * `invoice.viewAll` and `incident.viewAll`. Residents hold the narrow one so
+   * the directory works; without the split, any resident could read any other
+   * household's email, phone, date of birth, masked NIN and emergency contact.
+   *
+   * Not granted to a plain security officer. The gate has its own identity
+   * path, and contact details have no use at a barrier.
+   */
+  RESIDENT_VIEW_ALL: 'resident.viewAll',
   /** Reveals a full NIN. Deliberately separate, and always audited. */
   RESIDENT_VIEW_NIN: 'resident.viewNin',
   RESIDENT_CREATE: 'resident.create',

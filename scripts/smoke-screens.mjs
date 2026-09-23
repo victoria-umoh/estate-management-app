@@ -278,6 +278,50 @@ async function main() {
     );
   }
 
+  console.log('\nAccess tokens are short-lived');
+  {
+    // The context resolver performs no database lookup on the strength of this
+    // bound. `setExpirationTime` once received milliseconds where it wanted
+    // seconds, and every token expired in the year 58699 — unbounded, and
+    // therefore unrevocable.
+    const [, payload] = sessions.admin.token.split('.');
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const minutes = (claims.exp - claims.iat) / 60;
+
+    report(
+      minutes > 0 && minutes <= 24 * 60,
+      'token lifetime'.padEnd(24),
+      `${Math.round(minutes)} minutes`,
+    );
+  }
+
+  console.log('\nA resident cannot read another household\u2019s full record');
+  {
+    const all = await fetch(`${BASE}/api/v1/residents?limit=25`, {
+      headers: { authorization: `Bearer ${sessions.admin.token}` },
+    }).then((r) => r.json());
+
+    const mine = await fetch(`${BASE}/api/v1/me/profile`, {
+      headers: { authorization: `Bearer ${sessions.resident.token}` },
+    }).then((r) => r.json());
+
+    const stranger = (Array.isArray(all?.data) ? all.data : []).find(
+      (row) => row.membershipId !== mine?.data?.membershipId,
+    );
+
+    if (!stranger) {
+      report(true, 'stranger detail'.padEnd(24), 'only one resident seeded');
+    } else {
+      const response = await fetch(`${BASE}/api/v1/residents/${stranger.membershipId}`, {
+        headers: { authorization: `Bearer ${sessions.resident.token}` },
+      });
+
+      // 404 rather than 403: confirming the membership exists is itself a
+      // disclosure in a directory of this kind.
+      report(response.status === 404, 'stranger detail 404'.padEnd(24), String(response.status));
+    }
+  }
+
   console.log('\nIncidents are narrowed to the caller without incident.viewAll');
   {
     const asAdmin = await fetch(`${BASE}/api/v1/incidents?limit=50`, {

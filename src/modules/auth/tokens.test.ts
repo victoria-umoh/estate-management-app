@@ -16,6 +16,35 @@ const claims = {
 };
 
 describe('access tokens', () => {
+  /**
+   * The whole security model rests on these being short-lived.
+   *
+   * `setExpirationTime` takes a numeric argument as epoch **seconds**; it was
+   * being given milliseconds, so every token expired in the year 58699 and
+   * `JWT_ACCESS_TTL` did nothing. Nothing caught it because every other test
+   * only asked whether a token verified — which a permanent one does, happily.
+   *
+   * The context resolver deliberately performs no database lookup on the
+   * strength of this bound, so a token that never expires is also one that
+   * cannot be revoked.
+   */
+  it('expires within the configured lifetime', async () => {
+    const token = await issueAccessToken(claims);
+    const payload = JSON.parse(
+      Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'),
+    ) as { iat: number; exp: number };
+
+    const lifetimeSeconds = payload.exp - payload.iat;
+
+    expect(lifetimeSeconds).toBeGreaterThan(0);
+    // Generous upper bound rather than an exact match, so the test survives a
+    // deliberate TTL change while still failing on a unit mix-up of any size.
+    expect(lifetimeSeconds).toBeLessThanOrEqual(24 * 60 * 60);
+
+    // And `exp` is a plausible epoch-second value, not a millisecond one.
+    expect(payload.exp).toBeLessThan(4_000_000_000);
+  });
+
   it('round-trips claims', async () => {
     const verified = await verifyAccessToken(await issueAccessToken(claims));
 

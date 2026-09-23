@@ -19,7 +19,6 @@ let done = false;
 
 export function bootstrap(): void {
   if (done) return;
-  done = true;
 
   registerAuthContextResolver();
 
@@ -37,4 +36,10 @@ export function bootstrap(): void {
     // Logged by the queue itself; swallowed here so a queue that is briefly
     // unreachable cannot take the first request down with it.
   });
+
+  // Marked complete only once the synchronous work has actually succeeded. It
+  // used to be set first, so anything that threw left the application half
+  // wired and permanently convinced it was ready — the next request would sail
+  // past this and run without the handlers that failed to register.
+  done = true;
 }
