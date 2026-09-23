@@ -25,6 +25,8 @@
     "/(app)/security/scan": 135,
     "/(app)/security": 128,
     "/(app)/my/id": 133,
-    "/(auth)/login": 122
+    "/(auth)/login": 122,
+    "/(marketing)": 125,
+    "/(marketing)/pricing": 128
   }
 }

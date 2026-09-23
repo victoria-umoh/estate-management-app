@@ -87,7 +87,17 @@ export const PERMISSIONS = {
   GATE_LOG_EXPORT: 'gateLog.export',
 
   // --- Incidents ------------------------------------------------------------
+  /** Incidents you reported or are named in. Held by every resident. */
   INCIDENT_VIEW: 'incident.view',
+  /**
+   * Every incident in the estate.
+   *
+   * Separate from `incident.view` for the same reason `invoice.viewAll` is:
+   * residents hold the narrow one so they can follow their own report, and
+   * without the split the estate-wide list hands any resident the full
+   * description and named parties of every incident on the estate.
+   */
+  INCIDENT_VIEW_ALL: 'incident.viewAll',
   INCIDENT_CREATE: 'incident.create',
   INCIDENT_ASSIGN: 'incident.assign',
   INCIDENT_UPDATE: 'incident.update',

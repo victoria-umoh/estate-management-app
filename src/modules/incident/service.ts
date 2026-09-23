@@ -2,11 +2,12 @@ import { Types } from 'mongoose';
 import { BaseRepository, allocateReference, withTransaction } from '@/core/db';
 import type { PaginatedResult } from '@/core/db';
 import { events } from '@/core/events';
-import { AuthorizationError, ConflictError, InvalidStateTransitionError } from '@/core/errors';
+import { AuthorizationError, ConflictError, InvalidStateTransitionError, NotFoundError } from '@/core/errors';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
+import { meService } from '@/modules/me';
 import {
   IncidentCommentModel,
   IncidentModel,
@@ -334,6 +335,18 @@ export class IncidentService {
     assertCan(context, PERMISSIONS.INCIDENT_VIEW);
 
     const filter: Record<string, unknown> = {};
+
+    // Without the estate-wide permission the caller sees only what they
+    // reported or were named in. Narrowing here rather than refusing means a
+    // resident can still follow their own report, which is the whole reason
+    // they hold `incident.view`.
+    if (!can(context, PERMISSIONS.INCIDENT_VIEW_ALL)) {
+      const membershipId = await meService.membershipId(context);
+      filter.$or = [
+        { reportedByMembershipId: new Types.ObjectId(membershipId) },
+        { 'involvedPersons.membershipId': new Types.ObjectId(membershipId) },
+      ];
+    }
     if (filters.status) filter.status = filters.status;
     if (filters.category) filter.category = filters.category;
     if (filters.severity) filter.severity = filters.severity;
@@ -350,6 +363,29 @@ export class IncidentService {
       // pushed down the list by a newer noise complaint.
       sort: { severityRank: -1, createdAt: -1 },
     });
+  }
+
+  /**
+   * One incident, if the caller may see it.
+   *
+   * A resident may read an incident they reported or were named in; anyone
+   * else needs the estate-wide permission. The refusal is a 404 rather than a
+   * 403, because confirming an incident exists but is none of your business
+   * still tells you it happened.
+   */
+  async detailFor(context: RequestContext, incidentId: string): Promise<IncidentDoc> {
+    assertCan(context, PERMISSIONS.INCIDENT_VIEW);
+
+    const incident = await incidentRepository.findByIdOrFail(context, incidentId);
+    if (can(context, PERMISSIONS.INCIDENT_VIEW_ALL)) return incident;
+
+    const membershipId = new Types.ObjectId(await meService.membershipId(context));
+    const involved =
+      incident.reportedByMembershipId.equals(membershipId) ||
+      incident.involvedPersons.some((person) => person.membershipId?.equals(membershipId));
+
+    if (!involved) throw new NotFoundError('Incident');
+    return incident;
   }
 
   private assertTransition(from: IncidentStatus, to: IncidentStatus): void {

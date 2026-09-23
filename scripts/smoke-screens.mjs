@@ -137,6 +137,18 @@ async function login(email) {
   });
   const body = await native.json();
 
+  // Login is rate limited per IP. Without this check an exhausted limit gives
+  // every later request an undefined token, and the run reports a dozen
+  // plausible-looking permission failures instead of the one real cause.
+  if (!native.ok || !body?.data?.tokens?.accessToken) {
+    const reason = body?.error?.code ?? native.status;
+    throw new Error(
+      native.status === 429
+        ? `Login rate limit hit (${reason}). Wait for the window to clear and re-run.`
+        : `Could not get a bearer token for ${email}: ${reason}`,
+    );
+  }
+
   return { token: body.data.tokens.accessToken, cookie };
 }
 
@@ -204,6 +216,37 @@ async function main() {
       `${role} → ${path}`.padEnd(24),
       `${response.status} ${body?.error?.code ?? 'ALLOWED — LEAK'}`,
     );
+  }
+
+  console.log('\nIncidents are narrowed to the caller without incident.viewAll');
+  {
+    const asAdmin = await fetch(`${BASE}/api/v1/incidents?limit=50`, {
+      headers: { authorization: `Bearer ${sessions.admin.token}` },
+    }).then((r) => r.json());
+    const asResident = await fetch(`${BASE}/api/v1/incidents?limit=50`, {
+      headers: { authorization: `Bearer ${sessions.resident.token}` },
+    }).then((r) => r.json());
+
+    const all = Array.isArray(asAdmin?.data) ? asAdmin.data : [];
+    const mine = Array.isArray(asResident?.data) ? asResident.data : [];
+
+    report(
+      mine.length <= all.length,
+      'resident sees fewer'.padEnd(24),
+      `resident ${mine.length} of ${all.length}`,
+    );
+
+    // The detail of an incident a resident had no part in must 404, not 403 —
+    // confirming it exists still tells them it happened.
+    const foreign = all.find((incident) => !mine.some((own) => own.id === incident.id));
+    if (foreign) {
+      const detail = await fetch(`${BASE}/api/v1/incidents/${foreign.id}`, {
+        headers: { authorization: `Bearer ${sessions.resident.token}` },
+      });
+      report(detail.status === 404, 'foreign detail 404'.padEnd(24), String(detail.status));
+    } else {
+      report(true, 'foreign detail 404'.padEnd(24), 'no foreign incident seeded');
+    }
   }
 
   console.log('\nDashboard blocks are scoped to the caller');

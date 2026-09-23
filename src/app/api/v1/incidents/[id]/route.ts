@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineRoute } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
-import { incidentRepository, incidentService } from '@/modules/incident';
+import { incidentService } from '@/modules/incident';
 
 const Params = z.object({ id: z.string() });
 
@@ -9,7 +9,7 @@ export const GET = defineRoute({
   permissions: [PERMISSIONS.INCIDENT_VIEW],
   params: Params,
   handler: async (ctx, { params }) => {
-    const incident = await incidentRepository.findByIdOrFail(ctx, params.id);
+    const incident = await incidentService.detailFor(ctx, params.id);
 
     return {
       id: incident._id.toHexString(),
