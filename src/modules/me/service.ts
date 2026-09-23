@@ -140,10 +140,7 @@ export class MeService {
   }
 
   /** Visitor passes the caller is hosting, newest first. */
-  async visitorPasses(
-    context: RequestContext,
-    pagination: { page?: number; limit?: number } = {},
-  ) {
+  async visitorPasses(context: RequestContext, pagination: { page?: number; limit?: number } = {}) {
     const membership = await this.membership(context);
 
     return visitorPassRepository.paginate(

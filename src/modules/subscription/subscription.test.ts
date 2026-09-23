@@ -190,10 +190,13 @@ describe('changing plan', () => {
     const estate = await makeEstate();
 
     await expect(
-      subscriptionService.subscribe(ctx(estate._id.toHexString(), [PERMISSIONS.SUBSCRIPTION_VIEW]), {
-        planCode: 'starter',
-        billingPeriod: 'monthly',
-      }),
+      subscriptionService.subscribe(
+        ctx(estate._id.toHexString(), [PERMISSIONS.SUBSCRIPTION_VIEW]),
+        {
+          planCode: 'starter',
+          billingPeriod: 'monthly',
+        },
+      ),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 });

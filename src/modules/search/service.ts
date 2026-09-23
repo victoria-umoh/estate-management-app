@@ -254,10 +254,7 @@ export class SearchService {
     const nameClauses = q
       .split(/\s+/)
       .filter((token) => token.length >= MIN_QUERY_LENGTH)
-      .flatMap((token) => [
-        { firstName: startsWith(token) },
-        { lastName: startsWith(token) },
-      ]);
+      .flatMap((token) => [{ firstName: startsWith(token) }, { lastName: startsWith(token) }]);
 
     if (nameClauses.length > 0) {
       clauses.push(...nameClauses);
@@ -272,15 +269,11 @@ export class SearchService {
     const userIds =
       clauses.length > 0
         ? (
-            await UserModel.find({ $or: clauses, deletedAt: null }, { _id: 1 })
-              .limit(200)
-              .lean()
+            await UserModel.find({ $or: clauses, deletedAt: null }, { _id: 1 }).limit(200).lean()
           ).map((user) => user._id)
         : [];
 
-    const membershipClauses: Array<Record<string, unknown>> = [
-      { residentCode: startsWith(q) },
-    ];
+    const membershipClauses: Array<Record<string, unknown>> = [{ residentCode: startsWith(q) }];
     if (userIds.length > 0) membershipClauses.push({ userId: { $in: userIds } });
 
     const memberships = await MembershipModel.find({
@@ -378,9 +371,8 @@ export class SearchService {
           id: membership._id.toHexString(),
           title: `${user.firstName} ${user.lastName}`,
           subtitle:
-            [membership.residentCode, unit ? `Unit ${unit}` : null]
-              .filter(Boolean)
-              .join(' · ') || null,
+            [membership.residentCode, unit ? `Unit ${unit}` : null].filter(Boolean).join(' · ') ||
+            null,
           href: `/admin/residents/${membership._id.toHexString()}`,
           status: membership.status,
         };

@@ -217,10 +217,7 @@ export class SubscriptionService {
       {
         status: 'past-due',
         deletedAt: null,
-        $or: [
-          { trialEndsAt: { $lt: graceCutoff } },
-          { subscriptionEndsAt: { $lt: graceCutoff } },
-        ],
+        $or: [{ trialEndsAt: { $lt: graceCutoff } }, { subscriptionEndsAt: { $lt: graceCutoff } }],
       },
       { _id: 1 },
     ).lean();

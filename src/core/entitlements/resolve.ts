@@ -67,9 +67,7 @@ export function hasFeature(entitlements: Entitlements, feature: Feature): boolea
 
 export function assertFeature(entitlements: Entitlements, feature: Feature): void {
   if (!entitlements.features.has(feature)) {
-    throw new PlanRestrictionError(
-      `Your plan does not include this feature. Upgrade to continue.`,
-    );
+    throw new PlanRestrictionError(`Your plan does not include this feature. Upgrade to continue.`);
   }
 }
 
@@ -89,9 +87,7 @@ export function assertWithinLimit(
   if (ceiling === UNLIMITED) return;
 
   if (currentCount >= ceiling) {
-    throw new PlanRestrictionError(
-      `Your plan allows ${ceiling} ${limit}. Upgrade to add more.`,
-    );
+    throw new PlanRestrictionError(`Your plan allows ${ceiling} ${limit}. Upgrade to add more.`);
   }
 }
 

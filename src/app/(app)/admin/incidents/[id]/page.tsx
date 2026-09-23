@@ -216,7 +216,11 @@ export default function IncidentDetailPage() {
             <h1 className="text-xl font-semibold tracking-tight text-balance">{incident.title}</h1>
           </div>
 
-          {actionError && <Alert tone="danger" title="Nothing was changed">{actionError}</Alert>}
+          {actionError && (
+            <Alert tone="danger" title="Nothing was changed">
+              {actionError}
+            </Alert>
+          )}
 
           <Card>
             <CardHeader>

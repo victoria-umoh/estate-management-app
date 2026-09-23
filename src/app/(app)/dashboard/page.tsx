@@ -147,7 +147,11 @@ export default function DashboardPage() {
           )}
 
           {data.resident && (
-            <Section title={data.resident.unitNumber ? `Your home · ${data.resident.unitNumber}` : 'Your home'}>
+            <Section
+              title={
+                data.resident.unitNumber ? `Your home · ${data.resident.unitNumber}` : 'Your home'
+              }
+            >
               <Tile
                 icon={<Banknote aria-hidden />}
                 label={
@@ -213,7 +217,9 @@ export default function DashboardPage() {
                 icon={<CarFront aria-hidden />}
                 label="Movements today"
                 value={data.security.movementsToday}
-                badge={data.security.deniedToday > 0 ? `${data.security.deniedToday} denied` : undefined}
+                badge={
+                  data.security.deniedToday > 0 ? `${data.security.deniedToday} denied` : undefined
+                }
                 href="/security/activity"
               />
               <Tile

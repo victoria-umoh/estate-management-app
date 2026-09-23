@@ -212,9 +212,7 @@ export function CommandPalette({ permissions }: CommandPaletteProps) {
     // not the vehicles page.
     return [
       ...resultGroups,
-      ...(navigationCommands.length > 0
-        ? [{ label: 'Go to', commands: navigationCommands }]
-        : []),
+      ...(navigationCommands.length > 0 ? [{ label: 'Go to', commands: navigationCommands }] : []),
     ];
   }, [results, navigationCommands]);
 
@@ -224,9 +222,7 @@ export function CommandPalette({ permissions }: CommandPaletteProps) {
   useEffect(() => setActiveIndex(0), [groups]);
 
   useEffect(() => {
-    listRef.current
-      ?.querySelector('[data-active="true"]')
-      ?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, groups]);
 
   // --- Selecting -------------------------------------------------------------
@@ -328,11 +324,9 @@ export function CommandPalette({ permissions }: CommandPaletteProps) {
                             : 'text-foreground hover:bg-accent',
                         )}
                       >
-                        <span className="min-w-0 flex-1 truncate font-medium">
-                          {command.title}
-                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{command.title}</span>
                         {command.subtitle && (
-                          <span className="text-muted-foreground min-w-0 max-w-[45%] truncate text-xs">
+                          <span className="text-muted-foreground max-w-[45%] min-w-0 truncate text-xs">
                             {command.subtitle}
                           </span>
                         )}

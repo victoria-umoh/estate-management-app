@@ -241,19 +241,13 @@ function BlacklistAction({ vehicle, onDone }: { vehicle: Vehicle; onDone: () => 
       setError(null);
       onDone();
     } catch (cause) {
-      setError(
-        cause instanceof ApiRequestError ? cause.message : 'Could not update this vehicle.',
-      );
+      setError(cause instanceof ApiRequestError ? cause.message : 'Could not update this vehicle.');
     }
   }
 
   return (
     <>
-      <Button
-        size="sm"
-        variant={blacklisting ? 'outline' : 'danger'}
-        onClick={() => setOpen(true)}
-      >
+      <Button size="sm" variant={blacklisting ? 'outline' : 'danger'} onClick={() => setOpen(true)}>
         {blacklisting ? <Ban aria-hidden /> : <ShieldCheck aria-hidden />}
         {blacklisting ? 'Blacklist' : 'Reinstate'}
       </Button>

@@ -21,13 +21,7 @@ import { api } from '@/lib/api/client';
  */
 type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
 
-type IncidentStatus =
-  | 'open'
-  | 'assigned'
-  | 'investigating'
-  | 'resolved'
-  | 'closed'
-  | 'escalated';
+type IncidentStatus = 'open' | 'assigned' | 'investigating' | 'resolved' | 'closed' | 'escalated';
 
 interface Incident {
   id: string;
@@ -76,15 +70,14 @@ const SEVERITY_TONE: Record<IncidentSeverity, 'danger' | 'warning' | 'neutral'> 
   low: 'neutral',
 };
 
-const STATUS_TONE: Record<IncidentStatus, 'neutral' | 'success' | 'warning' | 'danger' | 'info'> =
-  {
-    open: 'warning',
-    assigned: 'info',
-    investigating: 'info',
-    escalated: 'danger',
-    resolved: 'success',
-    closed: 'neutral',
-  };
+const STATUS_TONE: Record<IncidentStatus, 'neutral' | 'success' | 'warning' | 'danger' | 'info'> = {
+  open: 'warning',
+  assigned: 'info',
+  investigating: 'info',
+  escalated: 'danger',
+  resolved: 'success',
+  closed: 'neutral',
+};
 
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[] | null>(null);

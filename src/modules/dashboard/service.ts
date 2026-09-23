@@ -178,8 +178,8 @@ export class DashboardService {
     if (can(context, PERMISSIONS.RESIDENT_APPROVE)) {
       tasks.push(
         (async () => {
-          const [residents, pending, properties, occupied, incidents, requests] =
-            await Promise.all([
+          const [residents, pending, properties, occupied, incidents, requests] = await Promise.all(
+            [
               MembershipModel.countDocuments({ estateId, status: 'active', deletedAt: null }),
               MembershipModel.countDocuments({
                 estateId,
@@ -202,7 +202,8 @@ export class DashboardService {
                 status: { $nin: ['resolved', 'closed'] },
                 deletedAt: null,
               }),
-            ]);
+            ],
+          );
 
           response.estate = {
             residents,
