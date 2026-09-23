@@ -35,7 +35,14 @@ async function main(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     console.error('  FAIL  connect —', message);
 
-    if (/ENOTFOUND|querySrv/i.test(message)) {
+    // Checked before the generic advice, because the driver states this one
+    // plainly and pointing at the IP allowlist instead sends people to the
+    // wrong screen entirely.
+    if (/directConnection/i.test(message)) {
+      console.error('\n  Remove `directConnection=true` from MONGODB_URI. An SRV');
+      console.error('  connection string resolves several hosts, so pinning one is');
+      console.error('  both rejected by the driver and wrong for a replica set.\n');
+    } else if (/ENOTFOUND|querySrv/i.test(message)) {
       console.error('\n  The cluster hostname did not resolve. Check MONGODB_URI.\n');
     } else if (isAuthError(error)) {
       console.error('\n  The username or password was rejected.\n');
