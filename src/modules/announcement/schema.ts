@@ -43,6 +43,7 @@ export interface AnnouncementDoc extends TenantDocument {
   authorMembershipId: Types.ObjectId;
 
   publishedAt?: Date | null;
+  archivedAt?: Date | null;
   publishedByMembershipId?: Types.ObjectId | null;
   /** How many residents the publish actually reached, for the author's record. */
   notifiedCount: number;
@@ -77,6 +78,7 @@ const announcementSchema = new Schema<AnnouncementDoc>(
     authorMembershipId: { type: Schema.Types.ObjectId, required: true, ref: 'Membership' },
 
     publishedAt: { type: Date, default: null },
+    archivedAt: { type: Date, default: null },
     publishedByMembershipId: { type: Schema.Types.ObjectId, default: null, ref: 'Membership' },
     notifiedCount: { type: Number, default: 0 },
 

@@ -307,7 +307,14 @@ describe('editing', () => {
     expect(pinned.pinned).toBe(true);
   });
 
-  it('archives rather than erases', async () => {
+  /**
+   * Archiving is a status change, not a deletion.
+   *
+   * It used to soft-delete as well, which put the record beyond the
+   * repository's default filter — so an administrator who archived a notice
+   * could no longer find it, and archiving was indistinguishable from deleting.
+   */
+  it('archives without putting the record beyond reach', async () => {
     const author = await resident(ESTATE_A);
     const context = ctx(ESTATE_A, author.userId);
     const created = await draft(context);
@@ -316,7 +323,14 @@ describe('editing', () => {
 
     const stored = await AnnouncementModel.findById(created._id).lean();
     expect(stored?.status).toBe('archived');
-    expect(stored?.deletedAt).not.toBeNull();
+    expect(stored?.archivedAt).not.toBeNull();
+    expect(stored?.deletedAt ?? null).toBeNull();
+
+    // And an administrator can still list it.
+    const archived = await announcementService.list(context, { status: 'archived' });
+    expect(archived.items.map((item) => item._id.toHexString())).toContain(
+      created._id.toHexString(),
+    );
   });
 
   it('will not publish something that was archived', async () => {

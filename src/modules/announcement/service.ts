@@ -231,8 +231,15 @@ export class AnnouncementService {
   async archive(context: RequestContext, id: string): Promise<void> {
     assertCan(context, PERMISSIONS.ANNOUNCEMENT_DELETE);
 
-    await announcementRepository.updateById(context, id, { $set: { status: 'archived' } });
-    await announcementRepository.softDelete(context, id);
+    // Status only. Soft-deleting as well put the record beyond the repository's
+    // default filter, so an administrator who archived a notice could no longer
+    // find it — archiving looked identical to deleting, which is not what they
+    // chose. Residents stop seeing it because the read view filters on status.
+    await announcementRepository.updateById(
+      context,
+      id,
+      { $set: { status: 'archived', archivedAt: new Date() } },
+    );
 
     await auditService.record(context, {
       action: 'announcement.archived',
