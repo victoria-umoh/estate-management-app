@@ -4,10 +4,12 @@ import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
 import { systemContext, type RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
-import { EstateModel } from '@/modules/estate';
+import { EstateModel, estateService, type EstateDoc } from '@/modules/estate';
 import { MembershipModel } from '@/modules/membership/schema';
 import { InvoiceModel } from '@/modules/finance';
 import { PropertyModel } from '@/modules/property';
+
+import { allocateEstateSlug } from './slug';
 
 const log = createLogger('platform');
 
@@ -202,6 +204,62 @@ export class PlatformService {
     });
 
     return summaries;
+  }
+
+  /**
+   * Create an estate on a customer's behalf.
+   *
+   * The counterpart to self-serve signup, for the estates that arrive through a
+   * sales conversation rather than through the pricing page. This is what
+   * `platform.estate.create` gates — until now the permission existed and
+   * guarded nothing, which is worse than not having it: a role that appears to
+   * confer estate creation and does not is a permission audit that passes for
+   * the wrong reason.
+   *
+   * No account is created here. Platform staff provision the estate and invite
+   * its chairman, who then sets their own password through the invitation flow
+   * — so no operator ever chooses a customer's credentials.
+   */
+  async createEstate(
+    context: RequestContext,
+    input: {
+      name: string;
+      address: EstateDoc['address'];
+      contact: EstateDoc['contact'];
+    },
+  ): Promise<{ id: string; name: string; slug: string; trialEndsAt: Date | null }> {
+    assertCan(context, PERMISSIONS.PLATFORM_ESTATE_CREATE);
+    assertPlatformStaff(context);
+
+    // Derived here for the same reason it is derived during signup: a slug
+    // taken from the request is an identifier the requester chose.
+    const slug = await allocateEstateSlug(input.name);
+
+    const estate = await estateService.create({
+      name: input.name,
+      slug,
+      address: input.address,
+      contact: input.contact,
+    });
+
+    await auditService.record(context, {
+      action: 'platform.estate_created',
+      resource: 'estate',
+      resourceId: estate._id,
+      after: { name: estate.name, slug: estate.slug },
+    });
+
+    log.info(
+      { estateId: estate._id.toHexString(), slug, by: context.userId },
+      'estate created by platform staff',
+    );
+
+    return {
+      id: estate._id.toHexString(),
+      name: estate.name,
+      slug: estate.slug,
+      trialEndsAt: estate.trialEndsAt ?? null,
+    };
   }
 
   /**

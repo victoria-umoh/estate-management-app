@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineRoute, paginated } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
+import { meService } from '@/modules/me';
 import { serviceRequestService } from '@/modules/service-request';
 
 const CATEGORIES = [
@@ -58,7 +59,6 @@ export const GET = defineRoute({
 export const POST = defineRoute({
   permissions: [PERMISSIONS.SERVICE_REQUEST_CREATE],
   body: z.object({
-    requesterMembershipId: z.string().min(1),
     category: z.enum(CATEGORIES),
     priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
     subject: z.string().trim().min(4).max(160),
@@ -69,8 +69,13 @@ export const POST = defineRoute({
   }),
   rateLimit: { key: 'user', limit: 20, window: '1h', bucket: 'service-request:create' },
   handler: async (ctx, { body }) => {
-    const { requesterMembershipId, ...input } = body;
-    const request = await serviceRequestService.create(ctx, requesterMembershipId, input);
+    // The requester is the caller, resolved from the session. It used to be a
+    // field on the body, which let anyone holding serviceRequest.create file a
+    // ticket in a neighbour's name -- the same mistake incidents and
+    // emergencies each made, and the reason meService is the only answer to
+    // "who is calling?".
+    const requesterMembershipId = await meService.membershipId(ctx);
+    const request = await serviceRequestService.create(ctx, requesterMembershipId, body);
 
     return {
       id: request._id.toHexString(),

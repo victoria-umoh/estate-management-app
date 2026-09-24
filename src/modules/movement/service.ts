@@ -33,9 +33,42 @@ class MovementRepository extends BaseRepository<MovementDoc> {
   constructor() {
     super(MovementModel);
   }
+
+  /**
+   * The most recent event for a subject, whichever way it went.
+   *
+   * Answers "is this vehicle inside right now?" without replaying the log:
+   * an admitted `in` with nothing after it means it never left.
+   */
+  lastFor(
+    context: RequestContext,
+    subject: MovementDoc['subject'],
+    subjectId: string,
+  ): Promise<MovementDoc | null> {
+    return this.findOne(
+      context,
+      { subject, subjectId: new Types.ObjectId(subjectId), admitted: true },
+      { sort: { occurredAt: -1 } },
+    );
+  }
+
+  /** How many events a gate has recorded since midnight. */
+  countSince(context: RequestContext, gateId: string, since: Date): Promise<number> {
+    return this.count(context, {
+      gateId: new Types.ObjectId(gateId),
+      occurredAt: { $gte: since },
+    });
+  }
 }
 
-const repository = new MovementRepository();
+/**
+ * Exported so that services which must ask a question of the log — "is this
+ * vehicle still inside?", "has this gate been used today?" — can do so without
+ * holding `gateLog.view`, which is a permission about reading the log, not
+ * about deleting a record that depends on it.
+ */
+export const movementRepository = new MovementRepository();
+const repository = movementRepository;
 
 export class MovementService {
   /**

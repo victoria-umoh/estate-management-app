@@ -1,4 +1,9 @@
-export { movementService, MovementService, type RecordMovementInput } from './service';
+export {
+  movementService,
+  MovementService,
+  movementRepository,
+  type RecordMovementInput,
+} from './service';
 export {
   MovementModel,
   type MovementDoc,

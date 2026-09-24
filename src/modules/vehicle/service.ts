@@ -6,8 +6,9 @@ import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
-import { credentialService } from '@/modules/credential';
+import { credentialRepository, credentialService } from '@/modules/credential';
 import { membershipRepository } from '@/modules/membership/repository';
+import { movementRepository } from '@/modules/movement';
 import { VehicleModel, normalisePlate, type VehicleDoc } from './schema';
 
 const log = createLogger('vehicle');
@@ -44,6 +45,29 @@ export interface RegisterVehicleInput {
   insuranceProvider?: string;
   insuranceExpiryDate?: Date;
 }
+
+export interface UpdateVehicleInput {
+  plateNumber?: string;
+  make?: string;
+  model?: string;
+  colour?: string;
+  year?: number | null;
+  type?: VehicleDoc['type'];
+  driverName?: string | null;
+  driverPhone?: string | null;
+  insuranceProvider?: string | null;
+  insuranceExpiryDate?: Date | null;
+}
+
+/** Amendable free-text fields, trimmed uniformly rather than field by field. */
+const TEXT_FIELDS = [
+  'make',
+  'model',
+  'colour',
+  'driverName',
+  'driverPhone',
+  'insuranceProvider',
+] as const satisfies ReadonlyArray<keyof UpdateVehicleInput>;
 
 export class VehicleService {
   async register(context: RequestContext, input: RegisterVehicleInput): Promise<VehicleDoc> {
@@ -151,6 +175,141 @@ export class VehicleService {
     });
 
     return { token, vehicle: updated };
+  }
+
+  /**
+   * Amend a vehicle's details.
+   *
+   * The plate is the exception to "straightforward". At the barrier the plate
+   * IS the vehicle: it is what the officer reads off the bumper and what the
+   * credential displays. Changing it while an active credential still shows the
+   * old one leaves the gate matching a car that no longer exists — so the
+   * credential is reissued in the same call, which supersedes and uncaches the
+   * stale one. The new token comes back exactly once, as it does from `verify`.
+   */
+  async update(
+    context: RequestContext,
+    vehicleId: string,
+    input: UpdateVehicleInput,
+  ): Promise<{ vehicle: VehicleDoc; token?: string }> {
+    assertCan(context, PERMISSIONS.VEHICLE_UPDATE);
+
+    const vehicle = await vehicleRepository.findByIdOrFail(context, vehicleId);
+    await this.assertMayManage(context, vehicle.ownerMembershipId.toHexString());
+
+    const changes: Record<string, unknown> = {};
+    for (const field of TEXT_FIELDS) {
+      if (input[field] !== undefined) changes[field] = input[field]?.trim() ?? null;
+    }
+    if (input.year !== undefined) changes.year = input.year;
+    if (input.type !== undefined) changes.type = input.type;
+    if (input.insuranceExpiryDate !== undefined) {
+      changes.insuranceExpiryDate = input.insuranceExpiryDate;
+    }
+
+    const normalised = input.plateNumber ? normalisePlate(input.plateNumber) : null;
+    const plateChanged = normalised !== null && normalised !== vehicle.plateNormalised;
+
+    if (plateChanged) {
+      const clash = await vehicleRepository.findByPlate(context, normalised);
+      if (clash) {
+        throw new ConflictError(`A vehicle with plate ${input.plateNumber} is already registered.`);
+      }
+
+      changes.plateNumber = input.plateNumber!.trim().toUpperCase();
+      changes.plateNormalised = normalised;
+    }
+
+    if (Object.keys(changes).length === 0) return { vehicle };
+
+    const updated = await vehicleRepository.updateById(context, vehicleId, { $set: changes });
+
+    // Reissued rather than merely resynced: the plate is the credential's
+    // identity, and a new identity deserves a new token rather than an old one
+    // quietly relabelled.
+    let token: string | undefined;
+    const existing = plateChanged
+      ? await credentialRepository.findActiveFor(context, 'vehicle', vehicleId)
+      : null;
+
+    if (existing) {
+      const issued = await credentialService.issue(context, {
+        subject: 'vehicle',
+        subjectId: vehicleId,
+        display: {
+          ...existing.display,
+          primaryLabel: updated.plateNumber,
+          secondaryLabel: `${updated.colour} ${updated.make} ${updated.model}`,
+        },
+        ...(existing.validUntil ? { validUntil: existing.validUntil } : {}),
+      });
+      token = issued.token;
+    } else if (!plateChanged) {
+      // Same plate, possibly a new colour or model: the officer's second line
+      // of description would otherwise stay wrong until the next reissue.
+      await credentialService.syncDisplay(context, 'vehicle', vehicleId, {
+        secondaryLabel: `${updated.colour} ${updated.make} ${updated.model}`,
+      });
+    }
+
+    await auditService.record(context, {
+      action: 'vehicle.updated',
+      resource: 'vehicle',
+      resourceId: vehicleId,
+      before: { plateNumber: vehicle.plateNumber, colour: vehicle.colour, model: vehicle.model },
+      after: { plateNumber: updated.plateNumber, colour: updated.colour, model: updated.model },
+      metadata: { plateChanged, credentialReissued: Boolean(token) },
+    });
+
+    return { vehicle: updated, ...(token ? { token } : {}) };
+  }
+
+  /**
+   * Remove a vehicle from the register.
+   *
+   * A soft delete: movements name this vehicle, and a hard delete would leave
+   * the gate log pointing at nothing. Refused while the vehicle is inside the
+   * estate, because deleting it revokes the credential it needs to get back
+   * out — and the officer at the barrier is then arguing with a driver about a
+   * record that no longer exists.
+   */
+  async remove(context: RequestContext, vehicleId: string, reason: string): Promise<void> {
+    assertCan(context, PERMISSIONS.VEHICLE_DELETE);
+
+    const vehicle = await vehicleRepository.findByIdOrFail(context, vehicleId);
+
+    const last = await movementRepository.lastFor(context, 'vehicle', vehicleId);
+    if (last?.direction === 'in') {
+      throw new ConflictError(
+        `${vehicle.plateNumber} is currently inside the estate (entered ${last.occurredAt.toISOString()}). Record its exit before removing it.`,
+      );
+    }
+
+    const credential = await credentialRepository.findActiveFor(context, 'vehicle', vehicleId);
+    if (credential) {
+      await credentialService.revoke(
+        context,
+        credential._id.toHexString(),
+        `vehicle removed: ${reason}`,
+      );
+    }
+
+    // Status as well as the soft-delete marker: anything reading by status —
+    // the owner's own list, the gate's plate lookup — must agree with the
+    // register, not just the queries that exclude deleted rows.
+    await vehicleRepository.updateById(context, vehicleId, { $set: { status: 'removed' } });
+    await vehicleRepository.softDelete(context, vehicleId);
+
+    await auditService.record(context, {
+      action: 'vehicle.deleted',
+      resource: 'vehicle',
+      resourceId: vehicleId,
+      reason,
+      before: { plateNumber: vehicle.plateNumber, status: vehicle.status },
+      metadata: { credentialRevoked: Boolean(credential) },
+    });
+
+    log.info({ vehicleId, plate: vehicle.plateNumber }, 'vehicle removed from the register');
   }
 
   /**

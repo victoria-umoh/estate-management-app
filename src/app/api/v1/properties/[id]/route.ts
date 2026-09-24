@@ -3,6 +3,7 @@ import { defineRoute } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
 import {
   AssignOccupantDto,
+  DeleteReasonDto,
   propertyOccupancyRepository,
   propertyRepository,
   propertyService,
@@ -50,5 +51,23 @@ export const POST = defineRoute({
       ...body,
     });
     return { id: occupancy._id.toHexString(), role: occupancy.role };
+  },
+});
+
+/**
+ * Remove a property from the register.
+ *
+ * A soft delete, refused while anyone still holds or occupies the unit. The
+ * reason rides as a query parameter rather than a body because a DELETE body is
+ * poorly supported by intermediaries, and every delete here records why.
+ */
+export const DELETE = defineRoute({
+  permissions: [PERMISSIONS.PROPERTY_DELETE],
+  params: Params,
+  query: DeleteReasonDto,
+  idempotent: true,
+  handler: async (ctx, { params, query }) => {
+    await propertyService.remove(ctx, params.id, query.reason);
+    return { deleted: true };
   },
 });

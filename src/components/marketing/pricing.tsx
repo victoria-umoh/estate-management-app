@@ -202,7 +202,7 @@ export function Pricing() {
                       className="mt-auto"
                       variant={plan.highlighted ? 'primary' : 'outline'}
                     >
-                      <Link href="/login">Start with {plan.name}</Link>
+                      <Link href="/signup">Start with {plan.name}</Link>
                     </Button>
                   </CardContent>
                 </Card>

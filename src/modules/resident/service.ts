@@ -1,17 +1,19 @@
 import { Types } from 'mongoose';
 import type { PaginatedResult } from '@/core/db';
 import { decryptField } from '@/core/crypto';
-import { NotFoundError } from '@/core/errors';
+import { ConflictError, NotFoundError } from '@/core/errors';
 import { events } from '@/core/events';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
+import { credentialRepository, credentialService } from '@/modules/credential';
 import { membershipRepository } from '@/modules/membership/repository';
 import { MembershipModel, type MembershipDoc } from '@/modules/membership/schema';
 import { propertyOccupancyRepository, propertyRepository } from '@/modules/property';
 import { meService } from '@/modules/me';
 import { userRepository } from '@/modules/user/repository';
 import { UserModel, type UserDoc } from '@/modules/user/schema';
+import { vehicleRepository } from '@/modules/vehicle';
 import type { GateIdentity, ResidentDetail, ResidentListItem } from './types';
 
 export interface ResidentQuery {
@@ -222,10 +224,7 @@ export class ResidentService {
    * The caller decides who may read it: `gateIdentity` for an officer at the
    * barrier, `ownIdentity` for the person whose card it is.
    */
-  private async identityCard(
-    context: RequestContext,
-    membershipId: string,
-  ): Promise<GateIdentity> {
+  private async identityCard(context: RequestContext, membershipId: string): Promise<GateIdentity> {
     const membership = await membershipRepository.findByIdOrFail(context, membershipId);
     const user = await userRepository.findById(membership.userId);
     if (!user) throw new NotFoundError('Resident');
@@ -305,6 +304,117 @@ export class ResidentService {
     return updated;
   }
 
+  /**
+   * Suspend a resident.
+   *
+   * Distinct from deletion: the record stays, and everything that points at it
+   * — invoices, gate history, incidents — keeps resolving. What goes is access.
+   *
+   * Revoking the credentials is the substance of this, not a side effect. The
+   * gate reads credentials, not memberships, so a membership flipped to
+   * `suspended` with a live credential behind it is a suspended person who
+   * still opens the barrier — which is the entire thing suspension is for. The
+   * resident's own pass and every vehicle registered to them go together,
+   * because a car is just another way through the same gate.
+   */
+  async suspend(
+    context: RequestContext,
+    membershipId: string,
+    reason: string,
+  ): Promise<MembershipDoc> {
+    assertCan(context, PERMISSIONS.RESIDENT_SUSPEND);
+
+    const membership = await membershipRepository.findByIdOrFail(context, membershipId);
+
+    if (membership.status === 'suspended') {
+      throw new ConflictError('That resident is already suspended.');
+    }
+    await this.assertNotSelf(context, membership, 'suspend');
+
+    const updated = await membershipRepository.updateById(context, membershipId, {
+      $set: {
+        status: 'suspended',
+        // The same field the rejection path writes: both answer "why is this
+        // membership not active?", and splitting them would leave the screen
+        // reading one of two places depending on how the resident got here.
+        rejectionReason: reason,
+      },
+    });
+
+    const revoked = await this.revokeAccess(context, membership, `resident suspended: ${reason}`);
+
+    await auditService.record(context, {
+      action: 'resident.suspended',
+      resource: 'resident',
+      resourceId: membershipId,
+      reason,
+      before: { status: membership.status },
+      after: { status: 'suspended' },
+      metadata: { credentialsRevoked: revoked },
+    });
+
+    events.emit('resident.suspended', {
+      residentId: membershipId,
+      estateId: context.estateId,
+      reason,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Remove a resident from the estate.
+   *
+   * A soft delete, so the history stays resolvable, and refused while anything
+   * still depends on the record — an open tenancy or a registered vehicle both
+   * outlive the person on screen and would be orphaned by this. The refusal
+   * names what is in the way, because "409" tells an administrator nothing they
+   * can act on.
+   */
+  async remove(context: RequestContext, membershipId: string, reason: string): Promise<void> {
+    assertCan(context, PERMISSIONS.RESIDENT_DELETE);
+
+    const membership = await membershipRepository.findByIdOrFail(context, membershipId);
+    await this.assertNotSelf(context, membership, 'delete');
+
+    const blockers: string[] = [];
+
+    const occupancies = await propertyOccupancyRepository.findForMembership(
+      context,
+      membership._id,
+    );
+    if (occupancies.length > 0) {
+      const roles = [...new Set(occupancies.map((entry) => entry.role))].sort();
+      blockers.push(`${occupancies.length} current occupancy record(s) (${roles.join(', ')})`);
+    }
+
+    const vehicles = await vehicleRepository.findForOwner(context, membershipId);
+    if (vehicles.length > 0) {
+      blockers.push(
+        `${vehicles.length} registered vehicle(s) (${vehicles.map((v) => v.plateNumber).join(', ')})`,
+      );
+    }
+
+    if (blockers.length > 0) {
+      throw new ConflictError(
+        `That resident still has ${blockers.join(' and ')}. End or reassign them before deleting the record.`,
+      );
+    }
+
+    const revoked = await this.revokeAccess(context, membership, `resident deleted: ${reason}`);
+
+    await membershipRepository.softDelete(context, membershipId);
+
+    await auditService.record(context, {
+      action: 'resident.deleted',
+      resource: 'resident',
+      resourceId: membershipId,
+      reason,
+      before: { status: membership.status, residentCode: membership.residentCode ?? null },
+      metadata: { credentialsRevoked: revoked },
+    });
+  }
+
   async reject(context: RequestContext, membershipId: string, reason: string): Promise<void> {
     assertCan(context, PERMISSIONS.RESIDENT_APPROVE);
 
@@ -321,6 +431,60 @@ export class ResidentService {
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * Revoke everything that would still open a gate for this membership.
+   *
+   * Returns the count rather than nothing, so the audit entry records how much
+   * access actually went — a suspension that revoked zero credentials is worth
+   * being able to see afterwards.
+   */
+  private async revokeAccess(
+    context: RequestContext,
+    membership: MembershipDoc,
+    reason: string,
+  ): Promise<number> {
+    const membershipId = membership._id.toHexString();
+    let revoked = 0;
+
+    const own = await credentialRepository.findActiveFor(context, 'resident', membershipId);
+    if (own) {
+      await credentialService.revoke(context, own._id.toHexString(), reason);
+      revoked += 1;
+    }
+
+    // A vehicle credential admits whoever is driving it. Leaving those live
+    // would mean the resident walks in by car.
+    for (const vehicle of await vehicleRepository.findForOwner(context, membershipId)) {
+      const credential = await credentialRepository.findActiveFor(
+        context,
+        'vehicle',
+        vehicle._id.toHexString(),
+      );
+      if (!credential) continue;
+
+      await credentialService.revoke(context, credential._id.toHexString(), reason);
+      revoked += 1;
+    }
+
+    return revoked;
+  }
+
+  /**
+   * Refuse an administrator acting on their own membership.
+   *
+   * Someone suspending themselves locks the estate out of the account that
+   * could undo it, and the mistake is only ever discovered afterwards.
+   */
+  private async assertNotSelf(
+    context: RequestContext,
+    membership: MembershipDoc,
+    action: string,
+  ): Promise<void> {
+    if (membership.userId.toHexString() === context.userId) {
+      throw new ConflictError(`You cannot ${action} your own membership.`);
+    }
+  }
 
   private toListItem(
     membership: MembershipDoc,

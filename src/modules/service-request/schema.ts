@@ -137,3 +137,46 @@ serviceRequestSchema.index({ status: 1, dueAt: 1, escalatedAt: 1 });
 export const ServiceRequestModel: Model<ServiceRequestDoc> =
   (mongoose.models.ServiceRequest as Model<ServiceRequestDoc>) ??
   mongoose.model<ServiceRequestDoc>('ServiceRequest', serviceRequestSchema, 'service_requests');
+
+/**
+ * A comment on a service request.
+ *
+ * The same shape and the same visibility rule as incident comments, on purpose:
+ * an internal note is for staff, and a resident marking their own comment
+ * internal would hide it from the very people fixing their problem. Two
+ * conventions for "who can see this note" would be one convention too many.
+ */
+export interface ServiceRequestCommentDoc extends TenantDocument {
+  serviceRequestId: Types.ObjectId;
+  authorMembershipId: Types.ObjectId;
+  body: string;
+  /** Visible only to staff. Used for work notes. */
+  internal: boolean;
+  attachmentIds: Types.ObjectId[];
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+const serviceRequestCommentSchema = new Schema<ServiceRequestCommentDoc>(
+  {
+    estateId: { type: Schema.Types.ObjectId, required: true },
+    serviceRequestId: { type: Schema.Types.ObjectId, required: true, ref: 'ServiceRequest' },
+    authorMembershipId: { type: Schema.Types.ObjectId, required: true, ref: 'Membership' },
+    body: { type: String, required: true, trim: true, maxlength: 5000 },
+    internal: { type: Boolean, default: false },
+    attachmentIds: { type: [Schema.Types.ObjectId], default: [], ref: 'Document' },
+    deletedAt: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
+
+serviceRequestCommentSchema.index({ estateId: 1, serviceRequestId: 1, createdAt: 1 });
+
+export const ServiceRequestCommentModel: Model<ServiceRequestCommentDoc> =
+  (mongoose.models.ServiceRequestComment as Model<ServiceRequestCommentDoc>) ??
+  mongoose.model<ServiceRequestCommentDoc>(
+    'ServiceRequestComment',
+    serviceRequestCommentSchema,
+    'service_request_comments',
+  );

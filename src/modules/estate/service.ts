@@ -1,5 +1,6 @@
+import type { ClientSession } from 'mongoose';
 import { config } from '@/core/config';
-import { withTransaction } from '@/core/db';
+import { withOptionalTransaction } from '@/core/db';
 import { AuthorizationError, ConflictError, NotFoundError } from '@/core/errors';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
@@ -23,20 +24,29 @@ export class EstateService {
   /**
    * Register a new estate and seed its roles.
    *
-   * Both happen in one transaction: an estate without roles has no chairman, no
-   * security officers and no way to admit anyone — it would exist but be
-   * unusable, and the failure would surface later as a confusing permissions
-   * problem rather than as a failed signup.
+   * All of it happens in ONE transaction — the estate document, its system
+   * roles and the audit line. An estate without roles has no chairman, no
+   * security officers and no way to admit anyone: it exists but is unusable,
+   * and the failure surfaces later as a confusing permissions problem rather
+   * than as a failed signup. Role seeding used to run after the transaction
+   * committed, which left exactly that window open.
+   *
+   * A caller may pass its own `session` to make this one step of a larger
+   * atomic operation — self-serve signup does, so that the estate and the
+   * chairman who owns it can never exist without each other.
    */
-  async create(input: CreateEstateInput): Promise<EstateDoc> {
+  async create(
+    input: CreateEstateInput,
+    options: { session?: ClientSession } = {},
+  ): Promise<EstateDoc> {
     const slug = input.slug.toLowerCase().trim();
 
     if (await estateRepository.findBySlug(slug)) {
       throw new ConflictError(`An estate with the identifier "${slug}" already exists.`);
     }
 
-    const estate = await withTransaction(async (session) =>
-      estateRepository.create(
+    return withOptionalTransaction(options.session, async (session) => {
+      const estate = await estateRepository.create(
         {
           name: input.name.trim(),
           slug,
@@ -61,22 +71,21 @@ export class EstateService {
           stats: { propertyCount: 0, residentCount: 0, vehicleCount: 0 },
         },
         { session },
-      ),
-    );
+      );
 
-    // Seeded outside the transaction above because role seeding is itself
-    // transactional and idempotent; a retry is safe and cheap.
-    await roleService.seedSystemRoles(estate._id.toHexString());
+      await roleService.seedSystemRoles(estate._id.toHexString(), { session });
 
-    await auditService.record(systemContext(estate._id.toHexString()), {
-      action: 'estate.created',
-      resource: 'estate',
-      resourceId: estate._id,
-      after: { name: estate.name, slug: estate.slug },
+      await auditService.record(systemContext(estate._id.toHexString()), {
+        action: 'estate.created',
+        resource: 'estate',
+        resourceId: estate._id,
+        after: { name: estate.name, slug: estate.slug },
+        session,
+      });
+
+      log.info({ estateId: estate._id.toHexString(), slug }, 'estate created');
+      return estate;
     });
-
-    log.info({ estateId: estate._id.toHexString(), slug }, 'estate created');
-    return estate;
   }
 
   /** The caller's own estate. */

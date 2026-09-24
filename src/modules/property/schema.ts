@@ -149,10 +149,33 @@ export interface PropertyOccupancyDoc extends TenantDocument {
   endedAt?: Date | null;
   endReason?: 'transferred' | 'lease-ended' | 'evicted' | 'moved-out' | 'corrected' | null;
 
-  /** Lease terms, for tenancies. */
+  /** Lease terms, for tenancies. The window currently in force. */
   leaseStartDate?: Date | null;
   leaseEndDate?: Date | null;
   occupantCount?: number | null;
+
+  /**
+   * Windows this tenancy has already run under, oldest first.
+   *
+   * A renewal appends the outgoing window here rather than overwriting it. The
+   * question this record exists to answer — "was this person entitled to be
+   * here on the 14th of March?" — is unanswerable if each renewal erases the
+   * term it replaced.
+   */
+  previousLeaseTerms: Array<{
+    leaseStartDate?: Date | null;
+    leaseEndDate?: Date | null;
+    supersededAt: Date;
+    renewedBy: Types.ObjectId;
+  }>;
+
+  /**
+   * When the tenancy was approved, and by whom. Null on a tenancy that has
+   * been recorded but not yet signed off. Only tenancies are approved; an
+   * owner or landlord row leaves these null.
+   */
+  approvedAt?: Date | null;
+  approvedBy?: Types.ObjectId | null;
 
   recordedBy: Types.ObjectId;
 
@@ -180,6 +203,24 @@ const occupancySchema = new Schema<PropertyOccupancyDoc>(
     leaseEndDate: { type: Date, default: null },
     occupantCount: { type: Number, default: null, min: 1 },
 
+    previousLeaseTerms: {
+      type: [
+        new Schema(
+          {
+            leaseStartDate: { type: Date, default: null },
+            leaseEndDate: { type: Date, default: null },
+            supersededAt: { type: Date, required: true },
+            renewedBy: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+
+    approvedAt: { type: Date, default: null },
+    approvedBy: { type: Schema.Types.ObjectId, default: null, ref: 'User' },
+
     recordedBy: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
 
     deletedAt: { type: Date, default: null },
@@ -191,6 +232,8 @@ occupancySchema.index({ estateId: 1, propertyId: 1, endedAt: 1 });
 occupancySchema.index({ estateId: 1, membershipId: 1, endedAt: 1 });
 // Finds tenancies approaching expiry, for renewal reminders.
 occupancySchema.index({ estateId: 1, role: 1, leaseEndDate: 1 });
+// Backs the tenancy list, whose default view is "awaiting approval".
+occupancySchema.index({ estateId: 1, role: 1, approvedAt: 1, endedAt: 1, startedAt: -1 });
 
 // One current holder per role per property. Enforced by index rather than by
 // application logic, so two concurrent transfers cannot both succeed.

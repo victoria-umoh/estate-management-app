@@ -428,3 +428,279 @@ describe('tenant isolation', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 });
+
+/**
+ * The tenancy lifecycle: invite -> approve -> renew -> exit.
+ *
+ * The property under test is that each step is recorded rather than replaced.
+ * Renewal is the one that matters most: if the old window were overwritten,
+ * "was this person entitled to be here in March?" would have no answer.
+ */
+describe('tenancy lifecycle', () => {
+  const TENANCY_STAFF = [
+    PERMISSIONS.TENANT_CREATE,
+    PERMISSIONS.TENANT_VIEW,
+    PERMISSIONS.TENANT_APPROVE,
+    PERMISSIONS.TENANT_RENEW,
+    PERMISSIONS.TENANT_EXIT,
+  ];
+
+  async function makeTenancy(overrides: { leaseEndDate?: Date } = {}) {
+    const property = await makeProperty(`T${Math.floor(Math.random() * 10000)}`);
+
+    return propertyService.assignOccupant(admin, {
+      propertyId: property._id.toHexString(),
+      membershipId: TENANT,
+      role: 'tenant',
+      leaseStartDate: new Date('2026-01-01'),
+      leaseEndDate: overrides.leaseEndDate ?? new Date('2026-12-31'),
+      occupantCount: 2,
+    });
+  }
+
+  it('records a new tenancy as unapproved', async () => {
+    const tenancy = await makeTenancy();
+    expect(tenancy.approvedAt ?? null).toBeNull();
+  });
+
+  it('approves a tenancy and stamps who signed it off', async () => {
+    const tenancy = await makeTenancy();
+    const approver = ctx(ESTATE_A, TENANCY_STAFF);
+
+    const approved = await propertyService.approveTenancy(approver, tenancy._id.toHexString());
+
+    expect(approved.approvedAt).toBeInstanceOf(Date);
+    expect(approved.approvedBy?.toHexString()).toBe(approver.userId);
+  });
+
+  it('refuses to approve the same tenancy twice', async () => {
+    const tenancy = await makeTenancy();
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+
+    await expect(
+      propertyService.approveTenancy(admin, tenancy._id.toHexString()),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('refuses to approve an ended tenancy', async () => {
+    const tenancy = await makeTenancy();
+    await propertyService.endOccupancy(admin, tenancy._id.toHexString(), 'moved-out');
+
+    await expect(
+      propertyService.approveTenancy(admin, tenancy._id.toHexString()),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('requires tenant.approve', async () => {
+    const tenancy = await makeTenancy();
+
+    await expect(
+      propertyService.approveTenancy(
+        ctx(ESTATE_A, [PERMISSIONS.TENANT_VIEW]),
+        tenancy._id.toHexString(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('keeps the superseded window when a tenancy is renewed', async () => {
+    const tenancy = await makeTenancy({ leaseEndDate: new Date('2026-12-31') });
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+
+    const renewed = await propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+      leaseEndDate: new Date('2027-12-31'),
+    });
+
+    expect(renewed.leaseEndDate).toEqual(new Date('2027-12-31'));
+    // The window it replaced is still on the record, which is the whole point.
+    expect(renewed.previousLeaseTerms).toHaveLength(1);
+    expect(renewed.previousLeaseTerms[0]?.leaseStartDate).toEqual(new Date('2026-01-01'));
+    expect(renewed.previousLeaseTerms[0]?.leaseEndDate).toEqual(new Date('2026-12-31'));
+  });
+
+  it('abuts the new window to the end of the old one by default', async () => {
+    const tenancy = await makeTenancy({ leaseEndDate: new Date('2026-12-31') });
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+
+    const renewed = await propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+      leaseEndDate: new Date('2027-12-31'),
+    });
+
+    expect(renewed.leaseStartDate).toEqual(new Date('2026-12-31'));
+  });
+
+  it('accumulates every term across repeated renewals', async () => {
+    const tenancy = await makeTenancy({ leaseEndDate: new Date('2026-12-31') });
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+
+    await propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+      leaseEndDate: new Date('2027-12-31'),
+    });
+    const second = await propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+      leaseEndDate: new Date('2028-12-31'),
+    });
+
+    expect(second.previousLeaseTerms.map((term) => term.leaseEndDate)).toEqual([
+      new Date('2026-12-31'),
+      new Date('2027-12-31'),
+    ]);
+  });
+
+  it('refuses a renewal that does not extend the lease', async () => {
+    const tenancy = await makeTenancy({ leaseEndDate: new Date('2026-12-31') });
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+
+    await expect(
+      propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+        leaseEndDate: new Date('2026-06-30'),
+      }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('refuses to renew a tenancy that was never approved', async () => {
+    const tenancy = await makeTenancy();
+
+    await expect(
+      propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+        leaseEndDate: new Date('2028-12-31'),
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('refuses to renew an ended tenancy', async () => {
+    const tenancy = await makeTenancy();
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+    await propertyService.endOccupancy(admin, tenancy._id.toHexString(), 'lease-ended');
+
+    await expect(
+      propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+        leaseEndDate: new Date('2028-12-31'),
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('records approval and renewal in the audit trail', async () => {
+    const tenancy = await makeTenancy();
+    await propertyService.approveTenancy(admin, tenancy._id.toHexString());
+    await propertyService.renewTenancy(admin, tenancy._id.toHexString(), {
+      leaseEndDate: new Date('2028-12-31'),
+    });
+
+    expect(await AuditLogModel.countDocuments({ action: 'property.tenancy_approved' })).toBe(1);
+    expect(await AuditLogModel.countDocuments({ action: 'property.tenancy_renewed' })).toBe(1);
+  });
+
+  it('will not treat an ownership record as a tenancy', async () => {
+    const property = await makeProperty('OWN1');
+    const ownership = await propertyService.assignOccupant(admin, {
+      propertyId: property._id.toHexString(),
+      membershipId: OWNER,
+      role: 'owner',
+    });
+
+    await expect(
+      propertyService.approveTenancy(admin, ownership._id.toHexString()),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('treats a tenancy in another estate as not found', async () => {
+    const tenancy = await makeTenancy();
+
+    await expect(
+      propertyService.tenancy(ctx(ESTATE_B), tenancy._id.toHexString()),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('lists tenancies awaiting approval separately from approved ones', async () => {
+    const pending = await makeTenancy();
+    const approved = await makeTenancy();
+    await propertyService.approveTenancy(admin, approved._id.toHexString());
+
+    const awaiting = await propertyService.tenancies(admin, { state: 'pending' });
+    expect(awaiting.items.map((item) => item._id.toHexString())).toEqual([
+      pending._id.toHexString(),
+    ]);
+
+    const live = await propertyService.tenancies(admin, { state: 'approved' });
+    expect(live.items.map((item) => item._id.toHexString())).toEqual([approved._id.toHexString()]);
+  });
+
+  it('requires tenant.view to list tenancies', async () => {
+    await expect(
+      propertyService.tenancies(ctx(ESTATE_A, [PERMISSIONS.PROPERTY_VIEW])),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe('deleting a property', () => {
+  it('soft deletes, leaving the row retrievable', async () => {
+    const property = await makeProperty('DEL1');
+
+    await propertyService.remove(admin, property._id.toHexString(), 'Demolished');
+
+    await expect(
+      propertyRepository.findByIdOrFail(admin, property._id),
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    const retained = await propertyRepository.findById(admin, property._id, {
+      includeDeleted: true,
+    });
+    expect(retained?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('refuses while anyone still occupies it, and says who', async () => {
+    const property = await makeProperty('DEL2');
+    await propertyService.assignOccupant(admin, {
+      propertyId: property._id.toHexString(),
+      membershipId: TENANT,
+      role: 'tenant',
+    });
+
+    await expect(
+      propertyService.remove(admin, property._id.toHexString(), 'Demolished'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('tenant'),
+    });
+  });
+
+  it('allows the delete once the occupancy has ended', async () => {
+    const property = await makeProperty('DEL3');
+    const tenancy = await propertyService.assignOccupant(admin, {
+      propertyId: property._id.toHexString(),
+      membershipId: TENANT,
+      role: 'tenant',
+    });
+    await propertyService.endOccupancy(admin, tenancy._id.toHexString(), 'moved-out');
+
+    await expect(
+      propertyService.remove(admin, property._id.toHexString(), 'Demolished'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('requires property.delete', async () => {
+    const property = await makeProperty('DEL4');
+
+    await expect(
+      propertyService.remove(
+        ctx(ESTATE_A, [PERMISSIONS.PROPERTY_UPDATE]),
+        property._id.toHexString(),
+        'Demolished',
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('records the reason in the audit trail', async () => {
+    const property = await makeProperty('DEL5');
+    await propertyService.remove(admin, property._id.toHexString(), 'Merged into 12A');
+
+    const entry = await AuditLogModel.findOne({ action: 'property.deleted' }).lean();
+    expect(entry?.reason).toBe('Merged into 12A');
+  });
+
+  it('frees the unit number for reuse', async () => {
+    const property = await makeProperty('REUSE');
+    await propertyService.remove(admin, property._id.toHexString(), 'Renumbered');
+
+    await expect(makeProperty('REUSE')).resolves.toBeDefined();
+  });
+});

@@ -3,6 +3,7 @@ export {
   VehicleService,
   vehicleRepository,
   type RegisterVehicleInput,
+  type UpdateVehicleInput,
 } from './service';
 export {
   VehicleModel,

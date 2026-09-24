@@ -56,8 +56,14 @@ export function SiteHeader() {
 
         <ThemeToggle className="hidden sm:inline-flex" />
 
-        <Button asChild size="sm">
+        <Button asChild size="sm" variant="outline">
           <Link href="/login">Sign in</Link>
+        </Button>
+
+        {/* Hidden on the narrowest screens: two buttons plus two links do not
+            fit at 320px, and "Sign in" is the one a returning user needs. */}
+        <Button asChild size="sm" className="hidden min-[420px]:inline-flex">
+          <Link href="/signup">Start free</Link>
         </Button>
       </div>
     </header>

@@ -6,14 +6,18 @@
  * view, and must be audited every time the full value is revealed.
  */
 import mongoose from 'mongoose';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDatabase } from '@tests/helpers/database';
 import { blindIndex, encryptField } from '@/core/crypto';
 import { PERMISSIONS } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
+import { MemoryCacheAdapter, setCache } from '@/integrations/cache';
 import { AuditLogModel } from '@/modules/audit';
+import { AccessCredentialModel, credentialService } from '@/modules/credential';
 import { MembershipModel } from '@/modules/membership/schema';
+import { PropertyModel, PropertyOccupancyModel } from '@/modules/property';
 import { UserModel } from '@/modules/user/schema';
+import { VehicleModel } from '@/modules/vehicle';
 import { residentService } from './service';
 
 setupTestDatabase();
@@ -302,5 +306,248 @@ describe('approval', () => {
       'resident.approved',
       'resident.rejected',
     ]);
+  });
+});
+
+/**
+ * Suspension and deletion.
+ *
+ * The property under test is that suspension actually takes access away. A
+ * membership flipped to `suspended` while its credential stays live is a
+ * suspended person who still opens the gate — which is the one thing
+ * suspension exists to prevent.
+ */
+describe('suspending a resident', () => {
+  const suspender = () => ctx([PERMISSIONS.RESIDENT_VIEW, PERMISSIONS.RESIDENT_SUSPEND]);
+
+  beforeEach(() => setCache(new MemoryCacheAdapter()));
+  afterEach(() => setCache(undefined));
+
+  async function issueCredentialFor(context: RequestContext, membershipId: string) {
+    return credentialService.issue(context, {
+      subject: 'resident',
+      subjectId: membershipId,
+      display: {
+        primaryLabel: 'Ada Okonkwo',
+        secondaryLabel: null,
+        unitNumber: '12B',
+        category: 'homeowner',
+        photoUrl: null,
+      },
+    });
+  }
+
+  it('keeps the record and marks it suspended', async () => {
+    const { membershipId } = await makeResident();
+
+    const updated = await residentService.suspend(suspender(), membershipId, 'Unpaid dues');
+
+    expect(updated.status).toBe('suspended');
+    expect(updated.rejectionReason).toBe('Unpaid dues');
+    expect(await MembershipModel.countDocuments({ _id: updated._id })).toBe(1);
+  });
+
+  it('revokes the resident gate credential', async () => {
+    const { membershipId } = await makeResident();
+    const context = suspender();
+    const { credential } = await issueCredentialFor(context, membershipId);
+
+    await residentService.suspend(context, membershipId, 'Under investigation');
+
+    const after = await AccessCredentialModel.findById(credential._id).lean();
+    expect(after?.status).toBe('revoked');
+  });
+
+  it('revokes the credentials of vehicles registered to them', async () => {
+    const { membershipId } = await makeResident();
+    const context = suspender();
+
+    const vehicle = await VehicleModel.create({
+      estateId: new mongoose.Types.ObjectId(ESTATE_A),
+      plateNumber: 'ABC-123-XY',
+      plateNormalised: 'ABC123XY',
+      make: 'Toyota',
+      model: 'Corolla',
+      colour: 'Silver',
+      type: 'car',
+      ownerMembershipId: new mongoose.Types.ObjectId(membershipId),
+      documentIds: [],
+      status: 'active',
+    });
+
+    const { credential } = await credentialService.issue(context, {
+      subject: 'vehicle',
+      subjectId: vehicle._id.toHexString(),
+      display: {
+        primaryLabel: 'ABC-123-XY',
+        secondaryLabel: 'Silver Toyota Corolla',
+        unitNumber: null,
+        category: 'homeowner',
+        photoUrl: null,
+      },
+    });
+
+    await residentService.suspend(context, membershipId, 'Unpaid dues');
+
+    const after = await AccessCredentialModel.findById(credential._id).lean();
+    expect(after?.status).toBe('revoked');
+  });
+
+  it('refuses to suspend someone twice', async () => {
+    const { membershipId } = await makeResident();
+    await residentService.suspend(suspender(), membershipId, 'Unpaid dues');
+
+    await expect(
+      residentService.suspend(suspender(), membershipId, 'Unpaid dues'),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('refuses to suspend your own membership', async () => {
+    const { userId, membershipId } = await makeResident();
+    const self = { ...suspender(), userId };
+
+    await expect(residentService.suspend(self, membershipId, 'Oops')).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it('requires resident.suspend', async () => {
+    const { membershipId } = await makeResident();
+
+    await expect(
+      residentService.suspend(approver(), membershipId, 'Unpaid dues'),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('treats a membership in another estate as not found', async () => {
+    const { membershipId } = await makeResident({ estateId: ESTATE_B });
+
+    await expect(
+      residentService.suspend(suspender(), membershipId, 'Unpaid dues'),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('records the reason and the credential count in the audit trail', async () => {
+    const { membershipId } = await makeResident();
+    const context = suspender();
+    await issueCredentialFor(context, membershipId);
+
+    await residentService.suspend(context, membershipId, 'Unpaid dues');
+
+    const entry = await AuditLogModel.findOne({ action: 'resident.suspended' }).lean();
+    expect(entry?.reason).toBe('Unpaid dues');
+    expect(entry?.metadata?.credentialsRevoked).toBe(1);
+  });
+});
+
+describe('deleting a resident', () => {
+  const remover = () => ctx([PERMISSIONS.RESIDENT_VIEW, PERMISSIONS.RESIDENT_DELETE]);
+
+  beforeEach(() => setCache(new MemoryCacheAdapter()));
+  afterEach(() => setCache(undefined));
+
+  it('soft deletes, leaving the record for the audit trail', async () => {
+    const { membershipId } = await makeResident();
+
+    await residentService.remove(remover(), membershipId, 'Duplicate registration');
+
+    const row = await MembershipModel.findById(membershipId).lean();
+    expect(row?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('drops the resident out of the directory', async () => {
+    const { membershipId } = await makeResident();
+    await residentService.remove(remover(), membershipId, 'Duplicate registration');
+
+    expect((await residentService.list(viewer())).total).toBe(0);
+  });
+
+  it('refuses while they still hold an occupancy, and says so', async () => {
+    const { membershipId } = await makeResident();
+
+    const property = await PropertyModel.create({
+      estateId: new mongoose.Types.ObjectId(ESTATE_A),
+      unitNumber: '12B',
+      street: 'Palm Avenue',
+      type: 'duplex',
+      currentOccupantCount: 1,
+    });
+    await PropertyOccupancyModel.create({
+      estateId: new mongoose.Types.ObjectId(ESTATE_A),
+      propertyId: property._id,
+      membershipId: new mongoose.Types.ObjectId(membershipId),
+      role: 'tenant',
+      startedAt: new Date(),
+      recordedBy: new mongoose.Types.ObjectId(),
+    });
+
+    await expect(
+      residentService.remove(remover(), membershipId, 'Duplicate registration'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('occupancy'),
+    });
+  });
+
+  it('refuses while a vehicle is still registered to them, naming the plate', async () => {
+    const { membershipId } = await makeResident();
+
+    await VehicleModel.create({
+      estateId: new mongoose.Types.ObjectId(ESTATE_A),
+      plateNumber: 'ABC-123-XY',
+      plateNormalised: 'ABC123XY',
+      make: 'Toyota',
+      model: 'Corolla',
+      colour: 'Silver',
+      type: 'car',
+      ownerMembershipId: new mongoose.Types.ObjectId(membershipId),
+      documentIds: [],
+      status: 'active',
+    });
+
+    await expect(
+      residentService.remove(remover(), membershipId, 'Duplicate registration'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('ABC-123-XY'),
+    });
+  });
+
+  it('revokes their credential on the way out', async () => {
+    const { membershipId } = await makeResident();
+    const context = remover();
+
+    const { credential } = await credentialService.issue(context, {
+      subject: 'resident',
+      subjectId: membershipId,
+      display: {
+        primaryLabel: 'Ada Okonkwo',
+        secondaryLabel: null,
+        unitNumber: null,
+        category: 'homeowner',
+        photoUrl: null,
+      },
+    });
+
+    await residentService.remove(context, membershipId, 'Duplicate registration');
+
+    const after = await AccessCredentialModel.findById(credential._id).lean();
+    expect(after?.status).toBe('revoked');
+  });
+
+  it('requires resident.delete', async () => {
+    const { membershipId } = await makeResident();
+
+    await expect(
+      residentService.remove(approver(), membershipId, 'Duplicate registration'),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('records the reason in the audit trail', async () => {
+    const { membershipId } = await makeResident();
+    await residentService.remove(remover(), membershipId, 'Duplicate registration');
+
+    const entry = await AuditLogModel.findOne({ action: 'resident.deleted' }).lean();
+    expect(entry?.reason).toBe('Duplicate registration');
   });
 });

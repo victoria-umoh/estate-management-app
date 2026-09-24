@@ -2,6 +2,7 @@ export {
   gateService,
   GateService,
   gateRepository,
+  type UpdateGateInput,
   type ProcessScanInput,
   type ProcessScanResult,
 } from './service';

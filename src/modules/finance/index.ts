@@ -32,3 +32,11 @@ export {
   feeCategoryRepository,
   type CreateFeeCategoryInput,
 } from './fee.service';
+export {
+  financeExportService,
+  FinanceExportService,
+  assertRange as assertExportRange,
+  resolveExportRange,
+  type ExportRange,
+  type ExportedFile,
+} from './export.service';

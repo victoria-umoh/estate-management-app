@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
-import { withTransaction } from '@/core/db';
-import { ConflictError, UnprocessableError } from '@/core/errors';
+import { withTransaction, type PaginatedResult } from '@/core/db';
+import { ConflictError, NotFoundError, UnprocessableError } from '@/core/errors';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
@@ -322,6 +322,197 @@ export class PropertyService {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Tenancy lifecycle: invite -> approve -> renew -> exit
+  //
+  // `assignOccupant` with role `tenant` is the invite and `endOccupancy` is the
+  // exit; both already existed. The two steps between them live here, in the
+  // same shape: assert the permission, load through the repository so a tenancy
+  // in another estate is a 404, refuse an impossible move by name, write, audit.
+  // ---------------------------------------------------------------------------
+
+  /** Tenancies across the estate, filtered by where each has got to. */
+  async tenancies(
+    context: RequestContext,
+    filters: Parameters<typeof propertyOccupancyRepository.paginateTenancies>[1] = {},
+    pagination: { page?: number; limit?: number } = {},
+  ): Promise<PaginatedResult<PropertyOccupancyDoc>> {
+    assertCan(context, PERMISSIONS.TENANT_VIEW);
+    return propertyOccupancyRepository.paginateTenancies(context, filters, pagination);
+  }
+
+  /** One tenancy. A row that is not a tenancy is not found, rather than refused. */
+  async tenancy(context: RequestContext, occupancyId: string): Promise<PropertyOccupancyDoc> {
+    assertCan(context, PERMISSIONS.TENANT_VIEW);
+
+    const occupancy = await propertyOccupancyRepository.findByIdOrFail(context, occupancyId);
+    if (occupancy.role !== 'tenant') throw new NotFoundError('Tenancy');
+
+    return occupancy;
+  }
+
+  /**
+   * Approve a recorded tenancy.
+   *
+   * Approving is what turns a tenancy someone typed in into one the estate
+   * stands behind, so it is stamped with who signed it off rather than with a
+   * bare boolean — "approved" with no name attached answers none of the
+   * questions approval exists to answer.
+   */
+  async approveTenancy(
+    context: RequestContext,
+    occupancyId: string,
+  ): Promise<PropertyOccupancyDoc> {
+    assertCan(context, PERMISSIONS.TENANT_APPROVE);
+
+    const tenancy = await this.loadTenancyForChange(context, occupancyId);
+
+    if (tenancy.approvedAt) {
+      throw new ConflictError('That tenancy was already approved.');
+    }
+
+    const updated = await propertyOccupancyRepository.updateById(context, occupancyId, {
+      $set: { approvedAt: new Date(), approvedBy: new Types.ObjectId(context.userId) },
+    });
+
+    await auditService.record(context, {
+      action: 'property.tenancy_approved',
+      resource: 'property',
+      resourceId: tenancy.propertyId.toHexString(),
+      metadata: {
+        occupancyId,
+        membershipId: tenancy.membershipId.toHexString(),
+        leaseEndDate: tenancy.leaseEndDate ?? null,
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Extend a tenancy's lease window.
+   *
+   * The outgoing window is appended to `previousLeaseTerms`, never overwritten.
+   * A dispute about when someone was entitled to be there is exactly what this
+   * record answers, and it cannot answer it if each renewal erases the term it
+   * replaced.
+   */
+  async renewTenancy(
+    context: RequestContext,
+    occupancyId: string,
+    input: { leaseEndDate: Date; leaseStartDate?: Date; occupantCount?: number },
+  ): Promise<PropertyOccupancyDoc> {
+    assertCan(context, PERMISSIONS.TENANT_RENEW);
+
+    const tenancy = await this.loadTenancyForChange(context, occupancyId);
+
+    // Renewing before approval would let an unreviewed tenancy be extended into
+    // one nobody ever agreed to.
+    if (!tenancy.approvedAt) {
+      throw new ConflictError('That tenancy has not been approved yet, so it cannot be renewed.');
+    }
+
+    const leaseStartDate = input.leaseStartDate ?? tenancy.leaseEndDate ?? tenancy.startedAt;
+
+    if (input.leaseEndDate <= leaseStartDate) {
+      throw new UnprocessableError('The new lease end date must be after the term it follows.');
+    }
+    if (tenancy.leaseEndDate && input.leaseEndDate <= tenancy.leaseEndDate) {
+      throw new UnprocessableError(
+        `The new lease end date must be later than the current one (${tenancy.leaseEndDate.toISOString().slice(0, 10)}).`,
+      );
+    }
+
+    return withTransaction(async (session) => {
+      const updated = await propertyOccupancyRepository.updateById(
+        context,
+        occupancyId,
+        {
+          $push: {
+            previousLeaseTerms: {
+              leaseStartDate: tenancy.leaseStartDate ?? null,
+              leaseEndDate: tenancy.leaseEndDate ?? null,
+              supersededAt: new Date(),
+              renewedBy: new Types.ObjectId(context.userId),
+            },
+          },
+          $set: {
+            leaseStartDate,
+            leaseEndDate: input.leaseEndDate,
+            ...(input.occupantCount ? { occupantCount: input.occupantCount } : {}),
+          },
+        },
+        { session },
+      );
+
+      if (input.occupantCount) {
+        await propertyRepository.updateById(
+          context,
+          tenancy.propertyId,
+          { $set: { currentOccupantCount: input.occupantCount } },
+          { session },
+        );
+      }
+
+      await auditService.record(context, {
+        action: 'property.tenancy_renewed',
+        resource: 'property',
+        resourceId: tenancy.propertyId.toHexString(),
+        metadata: {
+          occupancyId,
+          membershipId: tenancy.membershipId.toHexString(),
+          previousLeaseEndDate: tenancy.leaseEndDate ?? null,
+          leaseEndDate: input.leaseEndDate,
+          term: updated.previousLeaseTerms.length + 1,
+        },
+        session,
+      });
+
+      return updated;
+    });
+  }
+
+  /**
+   * Remove a property from the register.
+   *
+   * A soft delete: invoices, gate logs and occupancy history all point at this
+   * row, and a hard delete would leave every one of them dangling. Refused
+   * while anyone still holds or occupies it, and the refusal says who — "409"
+   * on its own leaves the caller guessing which of the two owners to end first.
+   */
+  async remove(context: RequestContext, propertyId: string, reason: string): Promise<void> {
+    assertCan(context, PERMISSIONS.PROPERTY_DELETE);
+
+    const property = await propertyRepository.findByIdOrFail(context, propertyId);
+    const occupants = await propertyOccupancyRepository.findCurrentOccupants(context, propertyId);
+
+    if (occupants.length > 0) {
+      const byRole = occupants.map((entry) => entry.role).sort();
+      throw new ConflictError(
+        `Unit ${property.unitNumber} still has ${describeCount(occupants.length, 'current occupancy', 'current occupancies')} (${byRole.join(', ')}). End ${occupants.length === 1 ? 'it' : 'them'} before removing the property.`,
+      );
+    }
+
+    await withTransaction(async (session) => {
+      await propertyRepository.softDelete(context, propertyId, { session });
+
+      await auditService.record(context, {
+        action: 'property.deleted',
+        resource: 'property',
+        resourceId: propertyId,
+        reason,
+        before: {
+          unitNumber: property.unitNumber,
+          street: property.street,
+          occupancyStatus: property.occupancyStatus,
+        },
+        session,
+      });
+    });
+
+    log.info({ propertyId, unitNumber: property.unitNumber }, 'property removed from the register');
+  }
+
   async history(context: RequestContext, propertyId: string): Promise<PropertyOccupancyDoc[]> {
     assertCan(context, PERMISSIONS.PROPERTY_VIEW);
     await propertyRepository.findByIdOrFail(context, propertyId);
@@ -329,6 +520,27 @@ export class PropertyService {
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * A tenancy that is still open, or a clear reason why not.
+   *
+   * Shared by approve and renew so both refuse an ended tenancy identically —
+   * and so neither can be applied to an ownership row, which has no lease and
+   * no approval step.
+   */
+  private async loadTenancyForChange(
+    context: RequestContext,
+    occupancyId: string,
+  ): Promise<PropertyOccupancyDoc> {
+    const occupancy = await propertyOccupancyRepository.findByIdOrFail(context, occupancyId);
+
+    if (occupancy.role !== 'tenant') throw new NotFoundError('Tenancy');
+    if (occupancy.endedAt) {
+      throw new ConflictError('That tenancy has already ended.');
+    }
+
+    return occupancy;
+  }
 
   private occupancyUpdateFor(
     role: OccupancyRole,
@@ -356,6 +568,11 @@ export class PropertyService {
     if (occupants.some((entry) => entry.role === 'owner')) return 'owner-occupied';
     return 'vacant';
   }
+}
+
+/** "1 current occupancy" / "2 current occupancies" — the count reads as prose. */
+function describeCount(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 export const propertyService = new PropertyService();

@@ -62,3 +62,23 @@ export const TransferOwnershipDto = z.object({
   /** End sitting tenancies as part of the sale. */
   endExistingTenancies: z.boolean().default(false),
 });
+
+export const ListTenanciesDto = z.object({
+  propertyId: z.string().min(1).optional(),
+  membershipId: z.string().min(1).optional(),
+  state: z.enum(['pending', 'approved', 'active', 'ended']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});
+
+export const RenewTenancyDto = z.object({
+  leaseEndDate: z.coerce.date(),
+  /** Defaults to the end of the term being replaced, so the windows abut. */
+  leaseStartDate: z.coerce.date().optional(),
+  occupantCount: z.number().int().min(1).max(100).optional(),
+});
+
+/** Every delete in this system is a soft delete, and every one states why. */
+export const DeleteReasonDto = z.object({
+  reason: z.string().trim().min(3).max(500),
+});

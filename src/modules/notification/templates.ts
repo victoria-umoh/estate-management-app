@@ -97,6 +97,12 @@ export interface NotificationTemplateDataMap {
 
   'announcement.published': { title: string; summary: string; announcementId: string };
   'account.duplicate-registration': { name: string; signInUrl: string };
+  'estate.signup-verification': {
+    name: string;
+    verificationUrl: string;
+    expiresInMinutes: number;
+    trialDays: number;
+  };
   'report.scheduled': {
     reportTitle: string;
     period: string;
@@ -333,6 +339,36 @@ export const NOTIFICATION_TEMPLATES: TemplateRegistry = {
         'Assign it in the security console.',
       ].join('\n'),
       smsBody: `${appName()}: ${severity} ${category} incident ${reference} reported — ${title}.`,
+    }),
+  },
+
+  'estate.signup-verification': {
+    id: 'estate.signup-verification',
+    category: 'account',
+    priority: 'high',
+    description:
+      'Confirms the address behind a self-serve estate signup. The estate cannot be signed into until this link is used.',
+    render: ({ name, verificationUrl, expiresInMinutes, trialDays }) => ({
+      title: 'Finish setting up your estate',
+      body: `Confirm your email address to open your ${trialDays}-day trial.`,
+      emailSubject: 'Finish setting up your estate',
+      emailText: [
+        `Hello ${name},`,
+        '',
+        'Your estate has been created and is waiting on one thing: proof that this',
+        'address is yours. Nobody can sign in until you confirm it, including you.',
+        '',
+        verificationUrl,
+        '',
+        `This link expires in ${expiresInMinutes} minutes.`,
+        '',
+        `Once confirmed you have ${trialDays} days of the Professional plan, with no card.`,
+        '',
+        'If you did not sign up, ignore this message — the estate stays locked and',
+        'nobody gains access to anything.',
+      ].join('\n'),
+      smsBody: `${appName()}: confirm your estate signup at ${verificationUrl} (expires in ${expiresInMinutes} min).`,
+      actionUrl: verificationUrl,
     }),
   },
 

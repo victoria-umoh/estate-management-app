@@ -8,8 +8,10 @@ import { systemContext, type RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
 import { meService } from '@/modules/me';
 import {
+  ServiceRequestCommentModel,
   ServiceRequestModel,
   type ServiceCategory,
+  type ServiceRequestCommentDoc,
   type ServicePriority,
   type ServiceRequestDoc,
   type ServiceStatus,
@@ -23,7 +25,14 @@ class ServiceRequestRepository extends BaseRepository<ServiceRequestDoc> {
   }
 }
 
+class ServiceRequestCommentRepository extends BaseRepository<ServiceRequestCommentDoc> {
+  constructor() {
+    super(ServiceRequestCommentModel);
+  }
+}
+
 export const serviceRequestRepository = new ServiceRequestRepository();
+export const serviceRequestCommentRepository = new ServiceRequestCommentRepository();
 
 /**
  * Response targets, in hours.
@@ -202,6 +211,83 @@ export class ServiceRequestService {
         ...(isRequester && satisfactionRating ? { satisfactionRating } : {}),
       },
     });
+  }
+
+  /**
+   * Comment on a ticket.
+   *
+   * Follows `incidentService.comment` exactly, because it is the same rule: the
+   * resident who raised it may comment, staff may comment on any, and an
+   * internal note is downgraded to a visible one for anyone who is not staff.
+   * The author is the caller's own membership, resolved from the session by the
+   * route — never a value from the request.
+   */
+  async comment(
+    context: RequestContext,
+    requestId: string,
+    authorMembershipId: string,
+    body: string,
+    options: { internal?: boolean; attachmentIds?: string[] } = {},
+  ): Promise<ServiceRequestCommentDoc> {
+    assertCan(context, PERMISSIONS.SERVICE_REQUEST_COMMENT);
+
+    const request = await serviceRequestRepository.findByIdOrFail(context, requestId);
+
+    const isRequester = request.requestedByMembershipId.toHexString() === authorMembershipId;
+    if (!isRequester && !this.isStaff(context)) {
+      throw new AuthorizationError('You can only comment on tickets you raised.');
+    }
+
+    // A closed ticket is a finished conversation; reopening means raising a new
+    // one, so the original's timeline cannot gain entries after the fact.
+    if (request.status === 'closed') {
+      throw new ConflictError('That ticket is closed.');
+    }
+
+    const internal = options.internal === true && this.isStaff(context);
+
+    return serviceRequestCommentRepository.create(context, {
+      serviceRequestId: new Types.ObjectId(requestId),
+      authorMembershipId: new Types.ObjectId(authorMembershipId),
+      body: body.trim(),
+      internal,
+      attachmentIds: (options.attachmentIds ?? []).map((id) => new Types.ObjectId(id)),
+    });
+  }
+
+  /** Comments on a ticket, hiding internal notes from residents. */
+  async comments(
+    context: RequestContext,
+    requestId: string,
+    viewerMembershipId: string,
+  ): Promise<ServiceRequestCommentDoc[]> {
+    assertCan(context, PERMISSIONS.SERVICE_REQUEST_VIEW);
+
+    const request = await serviceRequestRepository.findByIdOrFail(context, requestId);
+
+    const isStaff = this.isStaff(context);
+    if (!isStaff && request.requestedByMembershipId.toHexString() !== viewerMembershipId) {
+      throw new AuthorizationError('You can only view tickets you raised.');
+    }
+
+    return serviceRequestCommentRepository.findMany(
+      context,
+      { serviceRequestId: new Types.ObjectId(requestId), ...(isStaff ? {} : { internal: false }) },
+      { sort: { createdAt: 1 } },
+    );
+  }
+
+  /**
+   * Whoever can move a ticket along is staff for the purpose of internal notes.
+   *
+   * `serviceRequest.comment` is held by every resident, so it cannot be the
+   * test — it would make every note internal-capable and defeat the rule.
+   */
+  private isStaff(context: RequestContext): boolean {
+    return (
+      can(context, PERMISSIONS.SERVICE_REQUEST_ASSIGN) ||
+      can(context, PERMISSIONS.SERVICE_REQUEST_RESOLVE)
+    );
   }
 
   async list(

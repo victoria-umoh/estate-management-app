@@ -74,6 +74,48 @@ export class PropertyOccupancyRepository extends BaseRepository<PropertyOccupanc
     });
   }
 
+  /**
+   * Tenancies, newest first.
+   *
+   * Separate from `findHistory` because it spans the estate rather than one
+   * property: the screen this backs is "every tenancy", filtered by where each
+   * one has got to in its lifecycle.
+   */
+  paginateTenancies(
+    context: RequestContext,
+    filters: {
+      propertyId?: string;
+      membershipId?: string;
+      /** `pending` and `approved` are about sign-off; `ended` is about time. */
+      state?: 'pending' | 'approved' | 'active' | 'ended';
+    } = {},
+    pagination: { page?: number; limit?: number } = {},
+  ) {
+    const filter: Record<string, unknown> = { role: 'tenant' };
+
+    if (filters.propertyId) filter.propertyId = new Types.ObjectId(filters.propertyId);
+    if (filters.membershipId) filter.membershipId = new Types.ObjectId(filters.membershipId);
+
+    switch (filters.state) {
+      case 'pending':
+        filter.approvedAt = null;
+        filter.endedAt = null;
+        break;
+      case 'approved':
+      case 'active':
+        filter.approvedAt = { $ne: null };
+        filter.endedAt = null;
+        break;
+      case 'ended':
+        filter.endedAt = { $ne: null };
+        break;
+      default:
+        break;
+    }
+
+    return this.paginate(context, filter, pagination, { sort: { startedAt: -1 } });
+  }
+
   /** Tenancies expiring within the window, for renewal reminders. */
   findExpiringLeases(context: RequestContext, withinDays: number): Promise<PropertyOccupancyDoc[]> {
     const cutoff = new Date(Date.now() + withinDays * 86_400_000);
