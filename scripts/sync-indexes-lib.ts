@@ -42,7 +42,7 @@ import { NotificationModel, NotificationPreferenceModel } from '@/modules/notifi
 import { PropertyModel, PropertyOccupancyModel } from '@/modules/property';
 import { ReportScheduleModel } from '@/modules/report/schedule.schema';
 import { RoleModel } from '@/modules/role';
-import { ServiceRequestModel } from '@/modules/service-request';
+import { ServiceRequestCommentModel, ServiceRequestModel } from '@/modules/service-request';
 import { SessionModel } from '@/modules/auth';
 import { TemporaryPassModel } from '@/modules/temporary-pass/schema';
 import { UserModel } from '@/modules/user/schema';
@@ -71,6 +71,7 @@ const MODELS: Array<Model<any>> = [
   IncidentCommentModel,
   EmergencyModel,
   ServiceRequestModel,
+  ServiceRequestCommentModel,
   NotificationModel,
   NotificationPreferenceModel,
   AnnouncementModel,

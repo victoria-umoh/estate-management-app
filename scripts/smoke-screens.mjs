@@ -526,6 +526,69 @@ async function main() {
     report(leaked.length === 0, 'no contact fields', leaked.join(', ') || `${rows.length} rows`);
   }
 
+  // --- Identity comes from the session, never the body --------------------
+  // POST /service-requests once took requesterMembershipId as a body field and
+  // trusted it, so a resident could file a ticket in a neighbour's name. This
+  // is the ninth time that shape appeared, which is why it is asserted here
+  // rather than only in a unit test: the unit test asserts the permission its
+  // author chose, and this drives the route the way an attacker would.
+  console.log('\nIdentity is taken from the session');
+  {
+    const forged = '0'.repeat(24);
+    const created = await fetch(`${BASE}/api/v1/service-requests`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${sessions.resident.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requesterMembershipId: forged,
+        category: 'water',
+        subject: 'Smoke: forged requester',
+        description: 'Filed by the session owner, not by the id in the body.',
+      }),
+    });
+    const body = await created.json();
+    const id = body?.data?.id;
+    report(created.status === 201 && Boolean(id), 'ticket created', String(created.status));
+
+    if (id) {
+      const seen = await fetch(`${BASE}/api/v1/service-requests/${id}`, {
+        headers: { authorization: `Bearer ${sessions.admin.token}` },
+      });
+      const detail = await seen.json();
+      const owner =
+        detail?.data?.requestedBy?.membershipId ?? detail?.data?.requestedByMembershipId ?? null;
+      report(owner !== forged, 'forged requester ignored', owner === forged ? 'ATTRIBUTED TO FORGED ID' : 'session owner');
+    }
+  }
+
+  // --- Documents reach the roles that need them ---------------------------
+  // The security officer is the one staff role that does not inherit the
+  // resident baseline, so it held no document.* at all and could not see the
+  // photograph on an incident it was investigating. The estate-wide register
+  // is a list across subjects, so it cannot ask a subject and is gated on
+  // resident.viewAll instead -- a resident must still be refused it.
+  console.log('\nDocument access by role');
+  {
+    const incidents = await fetch(`${BASE}/api/v1/incidents?limit=1`, {
+      headers: { authorization: `Bearer ${sessions.officer.token}` },
+    });
+    const incidentId = (await incidents.json())?.data?.[0]?.id;
+
+    if (incidentId) {
+      const officerView = await fetch(
+        `${BASE}/api/v1/documents?subjectType=incident&subjectId=${incidentId}`,
+        { headers: { authorization: `Bearer ${sessions.officer.token}` } },
+      );
+      report(officerView.status === 200, 'officer reads incident documents', String(officerView.status));
+    }
+
+    for (const [role, want] of [['admin', 200], ['resident', 403]]) {
+      const response = await fetch(`${BASE}/api/v1/documents`, {
+        headers: { authorization: `Bearer ${sessions[role].token}` },
+      });
+      report(response.status === want, `${role} on the estate register`, `${response.status} (want ${want})`);
+    }
+  }
+
   console.log('\nWebhook signature');
   for (const [label, headers] of [
     ['unsigned', {}],

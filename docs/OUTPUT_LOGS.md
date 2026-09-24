@@ -1568,3 +1568,65 @@ exports.
 | Role assignment revokes sessions | A demotion that waits for a token to expire is fifteen minutes of nothing happening. |
 | Granted roles recorded as a joined string | The audit layer summarises arrays as "[N items]" in metadata as well as diffs, and "[1 items]" answers nothing about which role somebody was given. |
 | `user.*` withdrawn, not implemented | An estate administrator reaching the global account behind a membership would be reaching into another estate. |
+
+---
+
+## 2026-09-24 — Phase 14 complete: documents, tenancy, signup, exports
+
+Four workstreams landed: the documents module, the tenant lifecycle and the
+CRUD gaps, self-serve estate signup with the remaining exports, and role
+assignment.
+
+**Unenforced permissions: 52 → 25 → 5 of 126.** All five remaining are the
+`user.*` strings withdrawn by decision rather than built — a user is global, a
+membership is per-estate, so an estate chairman suspending a *user* would lock
+that person out of another estate. Every permission meant to gate something
+now does.
+
+### Defects found and fixed
+
+- **`POST /service-requests` took `requesterMembershipId` from the request
+  body** and trusted it, so any resident could file a ticket in a neighbour's
+  name. Now resolved from the session with `meService.membershipId`. This is
+  the ninth appearance of this exact shape; it is now asserted in `pnpm smoke`
+  by posting a forged id and checking the ticket is not attributed to it.
+- **A security officer held no `document.*` at all** — the one staff role that
+  does not inherit the resident baseline — so an officer could open an incident
+  they were investigating and not see its photograph, while holding
+  `incident.create` and `incident.update`. Granted view, upload and download;
+  not delete, because recording what happened must not include unrecording it.
+- **Four delete permissions gated endpoints no seeded role could reach.** Each
+  now sits beside the update it completes. `resident.delete` went to the
+  chairman alone, being the only one of the four that removes a person rather
+  than a thing. The chairman also gained `tenant.create`, having been able to
+  approve, renew and end a tenancy but not open one.
+- **`ServiceRequestComment` was registered but missing from the index sync
+  list** — caught by the guard added after the finance indexes shipped unbuilt.
+  That guard has now paid for itself.
+
+### Two reported failures that were not real
+
+Both cost time and are worth recording, because both looked like app defects.
+
+- **A reported `pnpm build` type error on every dynamic route**, blamed on
+  `defineRoute`'s optional second argument. It reproduced only under the
+  reporting run's own workaround: building with `distDir: .next-verify` and then
+  restoring `tsconfig.json`, which unwires the generated route types Next's
+  validation reads from `distDir`. With those types missing every dynamic route
+  context resolves to `undefined` — exactly the error seen, on the first dynamic
+  route alphabetically. A clean build passes. Changing the shared kernel to
+  satisfy this would have been a change to satisfy a phantom.
+- **A build failure and two e2e failures in the full gate run**, caused by a
+  background dev server respawning mid-build and clobbering `.next`. Alone, the
+  same tree builds green and passes 38/38 in 2.5 minutes, against 36/38 in 10
+  minutes under contention.
+
+The lesson in both: confirm nothing else is running before believing a build or
+end-to-end failure. `ps aux | grep "[n]ext"`.
+
+### Gate set, on a quiet server
+
+typecheck 0 · lint clean · **967 tests / 48 files** · build green, 28 nav links
+resolve, all bundles within budget · 143 indexes synced (29 unique) · index
+audit passed · `pnpm smoke` all green · **38/38 end-to-end** · OpenAPI 121 paths
+/ 166 operations.

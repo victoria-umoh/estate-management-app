@@ -18,25 +18,50 @@ the old bar while 18 of 24 navigation links went to screens that did not exist.
 `src/app`:
 
 ```bash
-for p in $(grep -oE "^\s+([A-Z_]+): '" src/core/rbac/permissions.ts | sed -E "s/[ :']//g"); do
-  n=$(grep -rE "PERMISSIONS\.$p\b" src/modules src/app 2>/dev/null | wc -l | tr -d ' ')
-  [ "$n" = "0" ] && echo "  $p"
+grep -oE "^  [A-Z_0-9]+:" src/core/rbac/permissions.ts | tr -d ' :' | while read c; do
+  n=$(grep -rlE "PERMISSIONS\.$c\b|P\.$c\b" src/modules src/app 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = "0" ] && echo "  $c"
 done
 ```
 
 A permission is declared when someone decides a capability should exist and
 referenced only when it does, so the gap between the two is the honest backlog —
 more honest than a phase checklist, which says what was planned rather than what
-is there. It went 52 → 25 → the handful below.
+is there. It went 52 → 25 → **5 of 126**, and those five are the withdrawn
+`user.*` strings below. Every permission meant to gate something now does.
+
+Match the *constant*, not the string. Code says `PERMISSIONS.DOCUMENT_VIEW`, so
+grepping for `'document.view'` reports almost every permission as unenforced.
+An earlier version of this command did exactly that and read 118 when the true
+figure was 5.
 
 **Not every one deserves an implementation.** `user.*` was withdrawn rather than
 built: a user is global and a membership is per-estate, so an estate
 administrator suspending a *user* would lock that person out of another estate.
 Some declared permissions deserve a decision instead.
 
-**Next action:** verify the phase-14 work lands green — documents, tenant
-lifecycle, estate signup — then run the full gate set and the end-to-end suite
-on a freshly restarted dev server.
+**Phase 14 is complete and verified.** Documents (storage-backed, type verified
+against magic bytes, EXIF stripped, downloads forced to octet-stream), tenant
+lifecycle (approve/renew with lease history preserved across renewals), resident
+suspend/delete (revoking the resident's pass *and* their vehicles' credentials,
+because a car is another way through the same gate), the four soft deletes,
+vehicle and gate update, service-request comments, self-serve estate signup with
+a trial and a verification link that actually bites, and the invoice, payment
+and audit exports.
+
+Gate set on a quiet server: typecheck 0, lint clean, **967 unit tests / 48
+files**, build green with 28 nav links resolving and all bundles within budget,
+143 indexes synced, index audit passed, `pnpm smoke` all green, **38/38
+end-to-end in 2.5 minutes**, OpenAPI at 121 paths / 166 operations.
+
+**On running the gates:** a background dev server respawning mid-`next build`
+corrupts `.next` and fails the build and roughly two e2e specs for reasons that
+look like app defects and are not. The same suite went 36/38 in 10 minutes under
+contention and 38/38 in 2.5 minutes alone. Confirm nothing else is running
+(`ps aux | grep "[n]ext"`) before believing a build or e2e failure.
+
+**Next action:** `/admin/tenancies` has no screen — the tenancy API is complete
+and navigation is unowned, so the nav entry and page are the remaining gap.
 
 **Standing caveats:**
 - `pnpm build` and `pnpm dev` share `.next` and corrupt each other. Use
