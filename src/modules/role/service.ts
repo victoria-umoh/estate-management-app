@@ -270,8 +270,11 @@ export class RoleService {
       );
     }
 
+    // De-duplicated, so the same role sent twice is stored once. The
+    // repository call is estate-scoped, so a role from another estate is a 404
+    // rather than something to check for here.
     const roles = await Promise.all(
-      roleIds.map((id) => roleRepository.findByIdOrFail(context, id)),
+      [...new Set(roleIds)].map((id) => roleRepository.findByIdOrFail(context, id)),
     );
 
     const actorRank = await this.actorHighestRank(context);
