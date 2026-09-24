@@ -189,6 +189,16 @@ async function main(): Promise<void> {
     roleCodes: ['security-officer'],
   });
 
+  // A tenant, so the tenancy register has something in it. Without one that
+  // screen seeds empty, which proves nothing about whether it works.
+  const tenant = await createPerson(estateId, {
+    firstName: 'Ngozi',
+    lastName: 'Eze',
+    handle: 'tenant',
+    category: 'tenant',
+    roleCodes: ['tenant'],
+  });
+
   // --- Property, with the resident as owner ---------------------------------
   const property = await propertyService.create(context, {
     unitNumber: '12B',
@@ -207,6 +217,31 @@ async function main(): Promise<void> {
   await MembershipModel.updateOne(
     { _id: resident.membershipId },
     { $set: { propertyId: property._id, residentCode: 'R-2026-00001' } },
+  );
+
+  // --- A let unit, with a tenancy awaiting approval -------------------------
+  // Left unapproved on purpose: the register opens on "pending", and an
+  // administrator's first question there is what is waiting for a signature.
+  const letUnit = await propertyService.create(context, {
+    unitNumber: '7A',
+    street: 'Palm Avenue',
+    type: 'apartment',
+    bedrooms: 2,
+    maxOccupants: 4,
+  });
+
+  await propertyService.assignOccupant(context, {
+    propertyId: letUnit._id.toHexString(),
+    membershipId: tenant.membershipId,
+    role: 'tenant',
+    leaseStartDate: new Date(),
+    leaseEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    occupantCount: 2,
+  });
+
+  await MembershipModel.updateOne(
+    { _id: tenant.membershipId },
+    { $set: { propertyId: letUnit._id, residentCode: 'R-2026-00002' } },
   );
 
   // --- Gates ----------------------------------------------------------------

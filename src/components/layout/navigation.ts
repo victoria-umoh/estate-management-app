@@ -1,5 +1,4 @@
 import {
-  Globe,
   AlertTriangle,
   BadgeCheck,
   Banknote,
@@ -8,7 +7,9 @@ import {
   Building2,
   Car,
   ClipboardList,
+  FileSignature,
   FileText,
+  Globe,
   Home,
   IdCard,
   Megaphone,
@@ -157,6 +158,12 @@ export const NAVIGATION: NavSection[] = [
         href: '/admin/properties',
         icon: Building2,
         permissions: [PERMISSIONS.PROPERTY_VIEW],
+      },
+      {
+        label: 'Tenancies',
+        href: '/admin/tenancies',
+        icon: FileSignature,
+        permissions: [PERMISSIONS.TENANT_VIEW],
       },
       {
         label: 'Vehicles',

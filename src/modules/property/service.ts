@@ -5,6 +5,8 @@ import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
+import { membershipRepository } from '@/modules/membership/repository';
+import { userRepository } from '@/modules/user/repository';
 import { propertyOccupancyRepository, propertyRepository } from './repository';
 import type { OccupancyRole, PropertyDoc, PropertyOccupancyDoc } from './schema';
 
@@ -339,6 +341,57 @@ export class PropertyService {
   ): Promise<PaginatedResult<PropertyOccupancyDoc>> {
     assertCan(context, PERMISSIONS.TENANT_VIEW);
     return propertyOccupancyRepository.paginateTenancies(context, filters, pagination);
+  }
+
+  /**
+   * Tenancies with the unit and the occupant resolved.
+   *
+   * The bare list carries ids, which is right for an API and useless on a
+   * screen: nobody administers a tenancy by ObjectId. The names are resolved
+   * here rather than in the route because only a repository may touch a model,
+   * and only the service may ask another module a question.
+   *
+   * The ids are de-duplicated first, so a block where one landlord holds six
+   * units costs one occupant lookup rather than six. That bounds the work at
+   * the number of distinct units and people on the page, not the row count.
+   */
+  async tenanciesForDisplay(
+    context: RequestContext,
+    filters: Parameters<typeof propertyOccupancyRepository.paginateTenancies>[1] = {},
+    pagination: { page?: number; limit?: number } = {},
+  ): Promise<PaginatedResult<PropertyOccupancyDoc & { unitNumber: string | null; street: string | null; occupantName: string | null }>> {
+    const result = await this.tenancies(context, filters, pagination);
+
+    const propertyIds = [...new Set(result.items.map((t) => t.propertyId.toHexString()))];
+    const membershipIds = [...new Set(result.items.map((t) => t.membershipId.toHexString()))];
+
+    const properties = new Map<string, PropertyDoc>();
+    for (const id of propertyIds) {
+      const record = await propertyRepository.findById(context, id);
+      if (record) properties.set(id, record);
+    }
+
+    const occupantNames = new Map<string, string>();
+    for (const id of membershipIds) {
+      const membership = await membershipRepository.findById(context, id);
+      if (!membership) continue;
+      const user = await userRepository.findById(membership.userId);
+      if (user) occupantNames.set(id, `${user.firstName} ${user.lastName}`);
+    }
+
+    return {
+      ...result,
+      items: result.items.map((tenancy) => {
+        const property = properties.get(tenancy.propertyId.toHexString());
+        return Object.assign(tenancy, {
+          unitNumber: property?.unitNumber ?? null,
+          street: property?.street ?? null,
+          // A tenancy whose occupant record has gone is still a tenancy, and
+          // the screen says so rather than dropping the row.
+          occupantName: occupantNames.get(tenancy.membershipId.toHexString()) ?? null,
+        });
+      }),
+    };
   }
 
   /** One tenancy. A row that is not a tenancy is not found, rather than refused. */

@@ -13,7 +13,7 @@ export const GET = defineRoute({
   query: ListTenanciesDto,
   handler: async (ctx, { query }) => {
     const { page, limit, ...filters } = query;
-    const result = await propertyService.tenancies(ctx, filters, { page, limit });
+    const result = await propertyService.tenanciesForDisplay(ctx, filters, { page, limit });
 
     return paginated({ ...result, items: result.items.map(serializeTenancy) });
   },
