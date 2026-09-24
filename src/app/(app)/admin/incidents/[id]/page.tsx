@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { Attachments } from '@/components/feature/attachments';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -267,9 +268,6 @@ export default function IncidentDetailPage() {
                     </span>
                   </Field>
                 )}
-                {incident.attachmentIds.length > 0 && (
-                  <Field label="Attachments">{incident.attachmentIds.length}</Field>
-                )}
               </dl>
 
               {incident.escalatedAt && (
@@ -290,6 +288,11 @@ export default function IncidentDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Was a count and nothing else: an officer investigating an
+              incident could read "Attachments: 2" and had no way to open
+              either one, nor to add the photograph they had just taken. */}
+          <Attachments subjectType="incident" subjectId={incident.id} />
 
           <Actions incident={incident} onRun={run} />
 

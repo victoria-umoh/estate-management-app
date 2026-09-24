@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, PermissionDeniedState } from '@/components/ui/states';
 import { SkeletonTable } from '@/components/ui/skeleton';
+import { ExportButton } from '@/components/ui/export-button';
 import { api, ApiRequestError } from '@/lib/api/client';
 
 /**
@@ -74,6 +75,23 @@ export default function AuditPage() {
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // The audit export is an Enterprise feature. Without this the button renders
+  // for every estate and answers 402 on a plan that does not include it, which
+  // is a worse experience than not offering it.
+  const [canExport, setCanExport] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const plan = await api.get<{ features?: string[] }>('/subscription');
+        setCanExport(Boolean(plan.features?.includes('audit-export')));
+      } catch {
+        // Subscription is a separate permission from audit.view, so a reader
+        // who cannot see the plan simply is not offered the export.
+        setCanExport(false);
+      }
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -120,10 +138,25 @@ export default function AuditPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Audit trail</h1>
-        <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <Lock className="size-3.5" aria-hidden />
-          Append-only — entries cannot be edited or removed
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Lock className="size-3.5" aria-hidden />
+            Append-only — entries cannot be edited or removed
+          </span>
+          {/* The export names the fields that changed and never their values,
+              so this cannot become a way to read a NIN out of a diff. */}
+          {canExport && (
+            <ExportButton
+              path="/audit/export"
+              filters={{
+                action: applied.action,
+                resource: applied.resource,
+                from: applied.from,
+                to: applied.to,
+              }}
+            />
+          )}
+        </div>
       </div>
 
       <Card>

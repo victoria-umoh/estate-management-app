@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Banknote, CheckCircle2, Clock, ShieldAlert, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ExportButton } from '@/components/ui/export-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { SkeletonTable } from '@/components/ui/skeleton';
@@ -95,9 +96,17 @@ export default function FinancePage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Finance</h1>
-        <Button variant="outline" onClick={() => void load()}>
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Two exports rather than one combined file: an invoice is money
+              owed and a payment is money received, and reconciling them is
+              exactly the job someone downloads these to do. Neither carries a
+              name or a contact -- resident code and unit only. */}
+          <ExportButton path="/invoices/export" label="Invoices CSV" />
+          <ExportButton path="/payments/export" label="Payments CSV" />
+          <Button variant="outline" onClick={() => void load()}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* --- Integrity: the figure that validates every other figure -------- */}

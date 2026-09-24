@@ -29,6 +29,15 @@ export interface SubscriptionView {
   /** What the estate is billed on, and what it is currently using. */
   usage: { units: number; gates: number; adminSeats: number };
   limits: { units: number; gates: number; adminSeats: number };
+  /**
+   * The feature flags this plan carries.
+   *
+   * Exposed so a screen can decline to offer an action the plan does not
+   * include, rather than presenting a button that answers 402. The server
+   * still enforces every one of these -- this list only keeps the interface
+   * honest about what is on offer.
+   */
+  features: string[];
   /** Minor units for the current unit count, at this plan. */
   estimatedMonthlyMinor: number;
 }
@@ -98,6 +107,7 @@ export class SubscriptionService {
     return {
       planCode: plan.code,
       planName: plan.name,
+      features: [...plan.features],
       status: estate.status,
       billingPeriod: estate.billingPeriod ?? null,
       trialEndsAt: estate.trialEndsAt ?? null,
