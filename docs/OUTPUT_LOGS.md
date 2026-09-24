@@ -1502,3 +1502,69 @@ do not describe; this phase staged explicitly.
 
 typecheck · lint · **808 tests** · build · nav coverage (28/28) · bundle budget ·
 **`pnpm smoke` all checks passed**.
+
+---
+
+## 2026-09-24T05:45Z — Phase 14: The last permissions that gated nothing
+
+### How the remaining work was found
+
+Counting permissions that appear nowhere in `src/modules` or `src/app`. That is
+a better progress measure than a phase checklist, because a permission is
+declared when someone decides a capability should exist and referenced only when
+it does — the gap between the two is the honest backlog.
+
+Twenty-five were left. They grouped into five features, not twenty-five tasks.
+
+### Delivered by me
+
+**Role assignment.** `role.assign` gated nothing, so no administrator could make
+somebody a security officer — the demo worked only because the seeder wrote
+roles into the database behind the application's back.
+
+It carries every rule `createCustomRole` has, plus one neither create nor update
+needs: **you cannot change your own roles.** Without that the rank ceiling is
+decorative — a manager need not define a role above their own when they can take
+one that already exists.
+
+Assignment revokes the person's sessions, because access tokens carry
+permissions and last fifteen minutes; a demotion that left them alone would take
+effect a quarter of an hour late.
+
+**A rule that was wrong for this path.** "You cannot grant a permission you do
+not hold" is correct when *creating* a role — otherwise you mint powers you lack
+and take them. Applied to *assignment* it said a chairman may not appoint a
+security officer unless the chairman personally holds `gate.operate`, which
+would force every chairman to hold every permission in the estate in order to
+delegate any of it. Appointing somebody is not the same as becoming them. It now
+applies to custom roles only; system roles are platform-defined and frozen
+against edits, so the rank ceiling is the control that matters there.
+
+Found by writing the test, not by reading the code.
+
+**`user.*` withdrawn rather than built.** A user is global; a membership is
+per-estate. `user.suspend` was granted to the chairman — and suspending a *user*
+from one estate would lock that person out of another estate they belong to,
+which is somebody else's tenant. `user.create`, `user.update` and `user.delete`
+were granted to nobody. The grants are gone and the strings stay, documented as
+reserved for platform-level administration, so a custom role already carrying
+one still validates.
+
+Not every declared permission deserves an implementation. Some deserve a
+decision.
+
+### Delivered by agents
+
+Documents (storage-backed, the adapter had been built and used by nothing),
+tenant lifecycle and the CRUD gaps, self-serve estate signup and the remaining
+exports.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| You cannot change your own roles | Otherwise the rank ceiling is decorative. |
+| The superset rule applies to custom roles only | A chairman delegating gate duty need not be able to open gates. |
+| Role assignment revokes sessions | A demotion that waits for a token to expire is fifteen minutes of nothing happening. |
+| Granted roles recorded as a joined string | The audit layer summarises arrays as "[N items]" in metadata as well as diffs, and "[1 items]" answers nothing about which role somebody was given. |
+| `user.*` withdrawn, not implemented | An estate administrator reaching the global account behind a membership would be reaching into another estate. |

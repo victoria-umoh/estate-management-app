@@ -4,8 +4,8 @@
 "Next action" below and continue from there. It is updated at every phase
 boundary and whenever a decision is made that future work depends on.
 
-**Last updated:** 2026-09-23
-**Current phase:** 13 complete — the roadmap is delivered
+**Last updated:** 2026-09-24
+**Current phase:** 14 — closing the last permissions that gated nothing
 
 **The bar changed this phase.** A phase is no longer done when the service works
 and the tests are green. It is done when the screen loads, signed in, as the
@@ -13,26 +13,36 @@ role that uses it — verified by `pnpm smoke`, which drives every screen and
 endpoint over HTTP as all three roles. Ten phases were reported complete under
 the old bar while 18 of 24 navigation links went to screens that did not exist.
 
-**Next action:** hardening. Playwright end-to-end over the six spec workflows
-is the main gap — `pnpm smoke` proves screens load and permissions hold, but
-nothing drives a full journey through a browser. Then a security review pass and
-an index/performance audit.
+**How to tell what is left.** Count the permissions in
+`src/core/rbac/permissions.ts` that appear nowhere in `src/modules` or
+`src/app`:
 
-**Known gaps, all deliberate:**
-- Report scheduling is not built. The permission, the jobs pattern and the send
-  path all exist; what is missing is attachment support in the notification
-  service, and an actor identity for the audit entry that names the person who
-  set the schedule up rather than "system".
-- Email verification is not enforced at login — membership approval already
-  gates everything. Making it blocking is a product decision.
-- Several screens have not been seen rendering in a browser. `pnpm smoke`
-  asserts they return 200 with their own content server-side; it cannot assert
-  they look right or that their interactions work.
+```bash
+for p in $(grep -oE "^\s+([A-Z_]+): '" src/core/rbac/permissions.ts | sed -E "s/[ :']//g"); do
+  n=$(grep -rE "PERMISSIONS\.$p\b" src/modules src/app 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = "0" ] && echo "  $p"
+done
+```
 
-**Open for the owner:**
-- The resident directory stays open by decision, guarded by a smoke check that
-  fails if the projection ever grows a contact field.
-- Chairmen cannot revoke temporary passes, by decision (separation of duties).
+A permission is declared when someone decides a capability should exist and
+referenced only when it does, so the gap between the two is the honest backlog —
+more honest than a phase checklist, which says what was planned rather than what
+is there. It went 52 → 25 → the handful below.
+
+**Not every one deserves an implementation.** `user.*` was withdrawn rather than
+built: a user is global and a membership is per-estate, so an estate
+administrator suspending a *user* would lock that person out of another estate.
+Some declared permissions deserve a decision instead.
+
+**Next action:** verify the phase-14 work lands green — documents, tenant
+lifecycle, estate signup — then run the full gate set and the end-to-end suite
+on a freshly restarted dev server.
+
+**Standing caveats:**
+- `pnpm build` and `pnpm dev` share `.next` and corrupt each other. Use
+  `pnpm clean` between them.
+- The e2e suite passes on a fresh dev server and decays on a reused one. If a
+  run is flaky, restart the server before suspecting the tests.
 
 ---
 
