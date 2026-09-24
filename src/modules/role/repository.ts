@@ -1,5 +1,5 @@
 import type { Types } from 'mongoose';
-import { BaseRepository } from '@/core/db';
+import { BaseRepository, type QueryOptions } from '@/core/db';
 import type { RequestContext } from '@/core/tenancy';
 import { RoleModel, type RoleDoc } from './schema';
 
@@ -8,8 +8,12 @@ export class RoleRepository extends BaseRepository<RoleDoc> {
     super(RoleModel);
   }
 
-  findByCode(context: RequestContext, code: string): Promise<RoleDoc | null> {
-    return this.findOne(context, { code: code.toLowerCase() });
+  findByCode(
+    context: RequestContext,
+    code: string,
+    options: QueryOptions = {},
+  ): Promise<RoleDoc | null> {
+    return this.findOne(context, { code: code.toLowerCase() }, options);
   }
 
   findByIds(context: RequestContext, ids: Types.ObjectId[]): Promise<RoleDoc[]> {

@@ -1,4 +1,4 @@
-import type { Types } from 'mongoose';
+import type { ClientSession, Types } from 'mongoose';
 import { withTransaction } from '@/core/db';
 import { AuthorizationError, ConflictError, UnprocessableError } from '@/core/errors';
 import {
@@ -11,6 +11,8 @@ import {
 } from '@/core/rbac';
 import { systemContext, type RequestContext } from '@/core/tenancy';
 import { auditService } from '@/modules/audit';
+import { membershipRepository } from '@/modules/membership/repository';
+import type { MembershipDoc } from '@/modules/membership/schema';
 import { roleRepository } from './repository';
 import type { RoleDoc } from './schema';
 
@@ -29,26 +31,38 @@ export class RoleService {
    * their officers can do, and so a future per-estate tweak does not require a
    * schema change. Idempotent, so re-running setup is safe.
    */
-  async seedSystemRoles(estateId: string): Promise<RoleDoc[]> {
+  async seedSystemRoles(
+    estateId: string,
+    options: { session?: ClientSession } = {},
+  ): Promise<RoleDoc[]> {
     const context = systemContext(estateId);
     const created: RoleDoc[] = [];
+    // Passed straight through so a caller creating an estate can seed its roles
+    // inside the same transaction. An estate whose roles committed while the
+    // estate itself rolled back — or the reverse — has no chairman and no way
+    // to appoint one.
+    const session = options.session ? { session: options.session } : {};
 
     for (const definition of SYSTEM_ROLES) {
-      const existing = await roleRepository.findByCode(context, definition.code);
+      const existing = await roleRepository.findByCode(context, definition.code, session);
       if (existing) {
         created.push(existing);
         continue;
       }
 
       created.push(
-        await roleRepository.create(context, {
-          code: definition.code,
-          name: definition.name,
-          description: definition.description,
-          permissions: [...definition.permissions],
-          isSystem: true,
-          rank: definition.rank,
-        }),
+        await roleRepository.create(
+          context,
+          {
+            code: definition.code,
+            name: definition.name,
+            description: definition.description,
+            permissions: [...definition.permissions],
+            isSystem: true,
+            rank: definition.rank,
+          },
+          session,
+        ),
       );
     }
 
@@ -225,6 +239,106 @@ export class RoleService {
 
       return updated;
     });
+  }
+
+  /**
+   * Set which roles a membership holds.
+   *
+   * Nothing assigned roles before this: they could be defined, and the seeder
+   * wrote them directly, but no administrator could make somebody a security
+   * officer. `role.assign` was declared and gated nothing.
+   *
+   * It is the privilege-escalation surface, so it carries every rule
+   * `createCustomRole` has and one more that neither create nor update needs:
+   * **you cannot change your own roles.** Without that, an estate manager
+   * grants themselves the chairman role and the rank ceiling is decorative —
+   * they are not creating a role above their own, merely taking one that
+   * already exists.
+   */
+  async assignRoles(
+    context: RequestContext,
+    membershipId: string,
+    roleIds: string[],
+  ): Promise<MembershipDoc> {
+    assertCan(context, PERMISSIONS.ROLE_ASSIGN);
+
+    const membership = await membershipRepository.findByIdOrFail(context, membershipId);
+
+    if (membership.userId.toHexString() === context.userId) {
+      throw new AuthorizationError(
+        'You cannot change your own roles. Ask another administrator.',
+      );
+    }
+
+    const roles = await Promise.all(
+      roleIds.map((id) => roleRepository.findByIdOrFail(context, id)),
+    );
+
+    const actorRank = await this.actorHighestRank(context);
+
+    for (const role of roles) {
+      // The same ceiling as creating one. Granting a role you could not have
+      // defined is the same escalation by a shorter path.
+      if (!canGrantRank(actorRank, role.rank)) {
+        throw new AuthorizationError(
+          `You cannot assign "${role.name}", which is ranked at or above your own.`,
+        );
+      }
+
+      /**
+       * The superset rule applies to custom roles only.
+       *
+       * When you *create* a role, refusing permissions you do not hold is
+       * right: you would otherwise mint powers you lack and take them. A
+       * system role is different — it is defined by the platform, frozen
+       * against edits, and cannot have anything smuggled into it. Applying the
+       * rule there says a chairman may not appoint a security officer unless
+       * the chairman personally holds `gate.operate`, which would force every
+       * chairman to hold every permission in the estate in order to delegate
+       * any of it. Appointing somebody is not the same as becoming them.
+       *
+       * The rank ceiling above still applies to both.
+       */
+      if (!role.isSystem) {
+        const beyond = role.permissions.filter((p) => !context.permissions.has(p));
+        if (beyond.length > 0 && !context.permissions.has(WILDCARD)) {
+          throw new AuthorizationError(
+            `"${role.name}" grants permissions you do not hold: ${beyond.join(', ')}.`,
+          );
+        }
+      }
+    }
+
+    const before = membership.roleIds.map((id) => id.toHexString());
+
+    const updated = await membershipRepository.updateById(context, membershipId, {
+      $set: { roleIds: roles.map((role) => role._id) },
+    });
+
+    // Their next request must reflect this. Access tokens carry permissions and
+    // last fifteen minutes, so a demotion that leaves existing sessions alone
+    // is a demotion that takes effect a quarter of an hour late — which is the
+    // wrong direction to be lenient in.
+    const { sessionRepository } = await import('@/modules/auth');
+    await sessionRepository.revokeAllForUser(membership.userId, 'admin-revoked');
+
+    await auditService.record(context, {
+      action: 'role.assigned',
+      resource: 'membership',
+      resourceId: membershipId,
+      // In metadata, not a before/after diff: the differ summarises arrays as
+      // "[N items]", which answers nothing about which roles were granted —
+      // the only question anyone asks of this entry afterwards.
+      // Joined, not an array: the audit layer summarises arrays as "[N items]"
+      // in metadata as well as in diffs, and "[1 items]" answers nothing about
+      // which role somebody was given.
+      metadata: {
+        granted: roles.map((role) => role.code).join(', ') || 'none',
+        previousRoleCount: before.length,
+      },
+    });
+
+    return updated;
   }
 
   async deleteRole(context: RequestContext, roleId: string): Promise<void> {

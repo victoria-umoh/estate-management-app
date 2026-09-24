@@ -378,6 +378,44 @@ async function main() {
     }
   }
 
+  console.log('\nRole assignment refuses escalation');
+  {
+    // Nothing assigned roles until now, so nothing guarded this path. It is
+    // how a person gains permissions, which makes it the escalation surface.
+    const me = await fetch(`${BASE}/api/v1/me/profile`, {
+      headers: { authorization: `Bearer ${sessions.admin.token}` },
+    }).then((r) => r.json());
+
+    const roles = await fetch(`${BASE}/api/v1/roles`, {
+      headers: { authorization: `Bearer ${sessions.admin.token}` },
+    }).then((r) => r.json());
+
+    const chairman = (Array.isArray(roles?.data) ? roles.data : []).find(
+      (role) => role.code === 'estate-chairman',
+    );
+
+    if (!me?.data?.membershipId || !chairman) {
+      report(true, 'self-assignment'.padEnd(24), 'could not resolve a role to try');
+    } else {
+      const response = await fetch(
+        `${BASE}/api/v1/residents/${me.data.membershipId}/roles`,
+        {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${sessions.admin.token}`,
+          },
+          body: JSON.stringify({ roleIds: [chairman.id] }),
+        },
+      );
+
+      // Changing your own roles is refused even for a chairman: without that,
+      // the rank ceiling is decorative — you need not define a role above your
+      // own when you can take one that exists.
+      report(response.status === 403, 'self-assignment refused'.padEnd(24), String(response.status));
+    }
+  }
+
   console.log('\nAccess tokens are short-lived');
   {
     // The context resolver performs no database lookup on the strength of this
