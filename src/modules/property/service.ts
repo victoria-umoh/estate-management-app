@@ -394,6 +394,30 @@ export class PropertyService {
     };
   }
 
+  /** One tenancy, with the unit and occupant resolved, for the detail screen. */
+  async tenancyForDisplay(
+    context: RequestContext,
+    occupancyId: string,
+  ): Promise<
+    PropertyOccupancyDoc & {
+      unitNumber: string | null;
+      street: string | null;
+      occupantName: string | null;
+    }
+  > {
+    const tenancy = await this.tenancy(context, occupancyId);
+
+    const property = await propertyRepository.findById(context, tenancy.propertyId);
+    const membership = await membershipRepository.findById(context, tenancy.membershipId);
+    const user = membership ? await userRepository.findById(membership.userId) : null;
+
+    return Object.assign(tenancy, {
+      unitNumber: property?.unitNumber ?? null,
+      street: property?.street ?? null,
+      occupantName: user ? `${user.firstName} ${user.lastName}` : null,
+    });
+  }
+
   /** One tenancy. A row that is not a tenancy is not found, rather than refused. */
   async tenancy(context: RequestContext, occupancyId: string): Promise<PropertyOccupancyDoc> {
     assertCan(context, PERMISSIONS.TENANT_VIEW);

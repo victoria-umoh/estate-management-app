@@ -34,3 +34,14 @@ export type SignupInput = z.infer<typeof SignupDto>;
 export const SignupVerifyDto = z.object({
   token: z.string().trim().min(16).max(200),
 });
+
+/**
+ * Ask for the verification link again.
+ *
+ * Only the address: everything else about the pending estate is already
+ * stored, and accepting more here would let a caller change it without
+ * holding the link.
+ */
+export const SignupResendDto = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});

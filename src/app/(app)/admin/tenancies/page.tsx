@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -153,9 +154,12 @@ export default function TenanciesPage() {
               {tenancies.map((tenancy) => (
                 <li key={tenancy.id} className="flex flex-wrap items-center gap-2 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">
+                    <Link
+                      href={`/admin/tenancies/${tenancy.id}`}
+                      className="hover:text-primary font-medium transition-colors"
+                    >
                       {tenancy.occupantName ?? 'Occupant record missing'}
-                    </p>
+                    </Link>
                     <p className="text-muted-foreground truncate text-sm">
                       {tenancy.unitNumber ? `Unit ${tenancy.unitNumber}` : 'Unit unknown'}
                       {tenancy.street ? ` · ${tenancy.street}` : ''}

@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { BaseRepository, allocateReference } from '@/core/db';
 import type { PaginatedResult } from '@/core/db';
-import { AuthorizationError, ConflictError } from '@/core/errors';
+import { AuthorizationError, ConflictError, NotFoundError } from '@/core/errors';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import { systemContext, type RequestContext } from '@/core/tenancy';
@@ -256,6 +256,46 @@ export class ServiceRequestService {
   }
 
   /** Comments on a ticket, hiding internal notes from residents. */
+  /**
+   * One ticket, for whoever is entitled to it.
+   *
+   * The route used to call the repository directly, which scopes by estate and
+   * nothing else. Every resident holds `serviceRequest.view` in order to follow
+   * their own tickets, so that route handed any resident any neighbour's ticket
+   * -- subject line, description and all -- to anyone who knew an id, while the
+   * list beside it was correctly narrowed. The narrow permission was doing two
+   * jobs again.
+   *
+   * Not found rather than forbidden: 403 would confirm the id exists, which is
+   * all an enumeration needs.
+   */
+  async detail(context: RequestContext, requestId: string): Promise<ServiceRequestDoc> {
+    assertCan(context, PERMISSIONS.SERVICE_REQUEST_VIEW);
+
+    const request = await serviceRequestRepository.findByIdOrFail(context, requestId);
+    await this.assertMayRead(context, request);
+
+    return request;
+  }
+
+  /**
+   * Staff see every ticket; a resident sees the ones they raised.
+   *
+   * Shared by the detail and the comment thread so the two cannot disagree
+   * about who a ticket belongs to.
+   */
+  private async assertMayRead(
+    context: RequestContext,
+    request: ServiceRequestDoc,
+  ): Promise<void> {
+    if (this.isStaff(context) || can(context, PERMISSIONS.SERVICE_REQUEST_VIEW_ALL)) return;
+
+    const viewer = await meService.membershipId(context).catch(() => null);
+    if (viewer && request.requestedByMembershipId.toHexString() === viewer) return;
+
+    throw new NotFoundError('Service request');
+  }
+
   async comments(
     context: RequestContext,
     requestId: string,
@@ -266,8 +306,11 @@ export class ServiceRequestService {
     const request = await serviceRequestRepository.findByIdOrFail(context, requestId);
 
     const isStaff = this.isStaff(context);
+    // 404 rather than 403, consistently with every other cross-household read:
+    // a refusal that distinguishes "not yours" from "no such ticket" is an
+    // enumeration oracle.
     if (!isStaff && request.requestedByMembershipId.toHexString() !== viewerMembershipId) {
-      throw new AuthorizationError('You can only view tickets you raised.');
+      throw new NotFoundError('Service request');
     }
 
     return serviceRequestCommentRepository.findMany(

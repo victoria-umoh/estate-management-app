@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { SkeletonText, SkeletonTable } from '@/components/ui/skeleton';
 import { ApiRequestError, api } from '@/lib/api/client';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
@@ -328,7 +329,12 @@ function TicketRow({
         </span>
       </div>
 
-      <p className="mt-1 text-sm font-medium">{request.subject}</p>
+      <Link
+        href={`/admin/requests/${request.id}`}
+        className="hover:text-primary mt-1 block text-sm font-medium transition-colors"
+      >
+        {request.subject}
+      </Link>
       <p className="text-muted-foreground mt-0.5 text-xs">
         {request.category} · raised {formatDate(request.createdAt)}
       </p>
@@ -559,9 +565,7 @@ function AssignDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Assign {ticketNumber}</DialogTitle>
-          <DialogDescription>
-            Route it to a department, to a person, or to both.
-          </DialogDescription>
+          <DialogDescription>Route it to a department, to a person, or to both.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-end gap-2">
@@ -652,7 +656,11 @@ function FilterRow({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="text-muted-foreground w-16 shrink-0 text-xs">{label}</span>
-      <Button size="sm" variant={value === null ? 'primary' : 'ghost'} onClick={() => onChange(null)}>
+      <Button
+        size="sm"
+        variant={value === null ? 'primary' : 'ghost'}
+        onClick={() => onChange(null)}
+      >
         All
       </Button>
       {options.map((option) => (

@@ -8,7 +8,7 @@ const Params = z.object({ id: z.string() });
 export const GET = defineRoute({
   params: Params,
   handler: async (ctx, { params }) =>
-    serializeTenancy(await propertyService.tenancy(ctx, params.id)),
+    serializeTenancy(await propertyService.tenancyForDisplay(ctx, params.id)),
 });
 
 /**

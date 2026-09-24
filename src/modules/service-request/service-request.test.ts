@@ -209,10 +209,40 @@ describe('reading comments', () => {
   it('refuses a resident reading a ticket they did not raise', async () => {
     const id = await ticketWithBothKinds();
 
+    // 404, not 403. A refusal that distinguishes "not yours" from "no such
+    // ticket" tells an enumerator which ids are real, which is the whole of
+    // what they need.
     await expect(
       serviceRequestService.comments(resident(), id, NEIGHBOUR),
-    ).rejects.toMatchObject({ statusCode: 403 });
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  it('refuses a resident reading the detail of a ticket they did not raise', async () => {
+    const id = await ticketWithBothKinds();
+
+    // The regression this guards: the route called the repository directly,
+    // which scopes by estate and nothing else. Every resident holds
+    // serviceRequest.view to follow their own tickets, so that handed any
+    // resident any neighbour's subject line and description for the price of
+    // an id -- while the list beside it was correctly narrowed.
+    await expect(serviceRequestService.detail(resident(), id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('lets staff read the detail of any ticket', async () => {
+    const id = await ticketWithBothKinds();
+
+    await expect(serviceRequestService.detail(staff(), id)).resolves.toMatchObject({
+      _id: expect.anything(),
+    });
+  });
+
+  // The requester's own path is not asserted here on purpose: detail() resolves
+  // the caller through meService, and these contexts are synthetic with no
+  // membership row behind them, so every non-staff caller looks like a stranger.
+  // It is covered where it can be honest -- pnpm smoke drives it over HTTP as a
+  // signed-in resident reading the ticket they raised.
 
   it('does not leak comments across estates', async () => {
     const id = await ticketWithBothKinds();

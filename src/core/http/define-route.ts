@@ -165,7 +165,15 @@ export function defineRoute<
 
         // --- Authentication ---------------------------------------------------
         const requiresAuth = definition.auth !== false;
-        const context = await resolveRequestContext(request);
+        // A public route must not be blocked by a stale or foreign token — an
+        // expired `eos_at` cookie would otherwise 401 the very login meant to
+        // replace it. Such requests proceed anonymously instead.
+        const context = requiresAuth
+          ? await resolveRequestContext(request)
+          : await resolveRequestContext(request).catch((error: unknown) => {
+              if (error instanceof AuthenticationError) return null;
+              throw error;
+            });
 
         if (requiresAuth && !context) {
           throw new AuthenticationError('You must be signed in to do that.');

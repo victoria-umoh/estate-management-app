@@ -25,6 +25,24 @@ export class MembershipRepository extends BaseRepository<MembershipDoc> {
       .exec();
   }
 
+  /**
+   * A membership still waiting on email verification.
+   *
+   * Like `findEstatesForUser`, this runs before an estate context exists,
+   * which is unavoidable: the caller is holding an email address and nothing
+   * else. It is scoped to one userId and returns only a pending row, so it
+   * answers nothing about any other user.
+   */
+  async findPendingForUser(userId: string | Types.ObjectId): Promise<MembershipDoc | null> {
+    return MembershipModel.findOne({
+      userId: new Types.ObjectId(userId),
+      status: 'pending',
+      deletedAt: null,
+    })
+      .lean<MembershipDoc>()
+      .exec();
+  }
+
   /** One membership, looked up without an estate context. Used by the token path. */
   async findByUserAndEstate(
     userId: string | Types.ObjectId,

@@ -280,6 +280,62 @@ export class SignupService {
    * useful thing to say. An unknown token and an expired one give the same
    * message, so a probe learns nothing about which.
    */
+  /**
+   * Send the verification link again.
+   *
+   * The link dies in an hour, which is short enough that losing it is ordinary
+   * rather than exceptional. Without this the only recovery was to sign up
+   * again with a different address, since the first attempt has already taken
+   * this one.
+   *
+   * Says the same sentence whatever happened, for the same reason `start` does:
+   * an address that has a pending estate and one that has nothing must be
+   * indistinguishable, or this becomes a cheaper oracle than signup itself.
+   * The timing floor covers the difference in work between the two branches.
+   *
+   * Issuing a new link retires every earlier one for that address. A link that
+   * was forwarded, logged by a mail scanner or left in a shared inbox stops
+   * working the moment a fresh one is asked for.
+   */
+  async resend(email: string, channel: SignupChannel = {}): Promise<SignupResult> {
+    await enforceRateLimit(
+      { key: 'user', limit: 3, window: '1h', bucket: 'signup:resend' },
+      { userId: blindIndex(email, 'email'), route: 'signup:resend' },
+    );
+
+    return withFloor(async () => {
+      const user = await userRepository.findByEmail(email);
+
+      if (user) {
+        const membership = await membershipRepository.findPendingForUser(user._id);
+
+        // Only a membership still waiting on this link gets another. An estate
+        // whose chairman already signed in needs nothing, and re-issuing there
+        // would let anyone knowing the address mail its owner on demand.
+        if (membership) {
+          await accountTokenRepository.consumeAllForEmailIndex(
+            'email-verification',
+            blindIndex(email, 'email'),
+          );
+
+          await this.issueVerification(
+            {
+              estateId: membership.estateId.toHexString(),
+              userId: user._id,
+              firstName: user.firstName,
+              email,
+            },
+            channel,
+          );
+
+          log.info({ email: maskEmail(email) }, 'signup verification resent');
+        }
+      }
+
+      return { message: SIGNUP_MESSAGE };
+    });
+  }
+
   async verify(token: string): Promise<SignupVerification> {
     const record = await accountTokenRepository.consume(
       'email-verification',

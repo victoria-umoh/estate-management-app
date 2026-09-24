@@ -13,5 +13,5 @@ export {
   type SignupResult,
   type SignupVerification,
 } from './signup.service';
-export { SignupDto, SignupVerifyDto, type SignupInput } from './signup.dto';
+export { SignupDto, SignupVerifyDto, SignupResendDto, type SignupInput } from './signup.dto';
 export { allocateEstateSlug, slugifyEstateName } from './slug';

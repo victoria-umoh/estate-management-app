@@ -17,6 +17,10 @@ const ACCOUNTS = {
   admin: 'admin@example.com',
   resident: 'resident@example.com',
   officer: 'officer@example.com',
+  // A second household. Without one, "can a resident read a neighbour's
+  // record" cannot be asked: the officer answers 403 for want of the
+  // permission entirely and never reaches the narrowing being tested.
+  tenant: 'tenant@example.com',
 };
 
 /**
@@ -557,6 +561,32 @@ async function main() {
       const owner =
         detail?.data?.requestedBy?.membershipId ?? detail?.data?.requestedByMembershipId ?? null;
       report(owner !== forged, 'forged requester ignored', owner === forged ? 'ATTRIBUTED TO FORGED ID' : 'session owner');
+    }
+
+    if (id) {
+      // The detail route once called the repository directly, so it answered
+      // for any ticket in the estate. Every resident holds serviceRequest.view.
+      // Three reads, because all three must be right at once: the raiser sees
+      // their own ticket, a neighbour cannot, and the neighbour's refusal is
+      // indistinguishable from one for a ticket that does not exist.
+      const own = await fetch(`${BASE}/api/v1/service-requests/${id}`, {
+        headers: { authorization: `Bearer ${sessions.resident.token}` },
+      });
+      report(own.status === 200, 'raiser reads their own ticket', String(own.status));
+
+      // The tenant holds serviceRequest.view, so this reaches the narrowing
+      // rather than stopping at the permission check.
+      const neighbour = await fetch(`${BASE}/api/v1/service-requests/${id}`, {
+        headers: { authorization: `Bearer ${sessions.tenant.token}` },
+      });
+      const ghost = await fetch(`${BASE}/api/v1/service-requests/${'0'.repeat(24)}`, {
+        headers: { authorization: `Bearer ${sessions.tenant.token}` },
+      });
+      report(
+        neighbour.status === 404 && ghost.status === 404,
+        'a ticket that is not yours looks like one that does not exist',
+        `${neighbour.status} vs ${ghost.status} (both must be 404)`,
+      );
     }
   }
 

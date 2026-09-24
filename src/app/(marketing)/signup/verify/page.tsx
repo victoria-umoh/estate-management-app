@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, ApiRequestError } from '@/lib/api/client';
 
@@ -22,6 +23,57 @@ interface Verified {
  * to tell somebody their estate is ready. The ref guards React's development
  * double-invoke of effects.
  */
+/**
+ * Ask for a fresh link.
+ *
+ * The reply is deliberately the same sentence whether or not the address has a
+ * pending estate, so this page cannot be used to test which addresses have
+ * signed up. It is phrased so that it reads as an answer either way rather than
+ * as a confirmation.
+ */
+function Resend() {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+
+    try {
+      const response = await api.post<{ message: string }>('/signup/resend', { email });
+      setSent(response.message);
+    } catch (caught) {
+      setSent(
+        caught instanceof ApiRequestError
+          ? caught.message
+          : 'Could not reach the server. Try again shortly.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) return <Alert tone="info">{sent}</Alert>;
+
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <Input
+        type="email"
+        label="Send the link again"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="The address you signed up with"
+        autoComplete="email"
+        required
+      />
+      <Button type="submit" block disabled={busy || !email.trim()}>
+        {busy ? 'Sending…' : 'Email me a new link'}
+      </Button>
+    </form>
+  );
+}
+
 function VerifyPanel() {
   const token = useSearchParams().get('token');
   const attempted = useRef(false);
@@ -56,8 +108,15 @@ function VerifyPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert tone="danger">{error}</Alert>
+
+          {/* "Start again" was the only way out, and it does not work: the
+              first attempt already took this address, so signing up again with
+              it fails. A link that expires in an hour needs a way to get
+              another one. */}
+          <Resend />
+
           <Button asChild variant="outline" block>
-            <Link href="/signup">Start again</Link>
+            <Link href="/signup">Start again with a different address</Link>
           </Button>
         </CardContent>
       </Card>

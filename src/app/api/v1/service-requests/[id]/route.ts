@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineRoute } from '@/core/http';
 import { PERMISSIONS } from '@/core/rbac';
 import { meService } from '@/modules/me';
-import { serviceRequestRepository, serviceRequestService } from '@/modules/service-request';
+import { serviceRequestService } from '@/modules/service-request';
 
 const Params = z.object({ id: z.string() });
 
@@ -10,7 +10,7 @@ export const GET = defineRoute({
   permissions: [PERMISSIONS.SERVICE_REQUEST_VIEW],
   params: Params,
   handler: async (ctx, { params }) => {
-    const request = await serviceRequestRepository.findByIdOrFail(ctx, params.id);
+    const request = await serviceRequestService.detail(ctx, params.id);
 
     return {
       id: request._id.toHexString(),
