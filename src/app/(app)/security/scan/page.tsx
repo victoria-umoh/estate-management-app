@@ -268,7 +268,11 @@ export default function GateScanPage() {
                 onClick={() =>
                   void (mode === 'code' ? submit({ code: manualValue }) : lookupPlate())
                 }
-                disabled={!manualValue.trim()}
+                // Also waits for a gate. The list loads asynchronously, and
+                // the button used to be live before it arrived — so a quick
+                // officer on a slow tablet got "Choose a gate first" for a gate
+                // that was about to select itself.
+                disabled={!manualValue.trim() || !gateId}
               >
                 {mode === 'code' ? 'Check code' : 'Look up plate'}
               </Button>

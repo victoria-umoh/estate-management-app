@@ -205,7 +205,7 @@ export default function SecurityDeskPage() {
           ) : inside.length === 0 ? (
             <EmptyState title="No visitors inside" description="Checked-in visitors appear here." />
           ) : (
-            <ul className="divide-border divide-y">
+            <ul aria-label="Currently inside" className="divide-border divide-y">
               {inside.map((visitor) => (
                 <li key={visitor.id} className="flex flex-wrap items-center gap-2 py-2.5">
                   <span className="flex-1 font-medium">{visitor.visitorName}</span>
@@ -238,7 +238,7 @@ export default function SecurityDeskPage() {
           ) : activity.length === 0 ? (
             <EmptyState title="No activity yet" description="Gate events appear here." />
           ) : (
-            <ul className="divide-border divide-y">
+            <ul aria-label="Recent gate activity" className="divide-border divide-y">
               {activity.map((movement) => (
                 <li key={movement.id} className="flex items-center gap-2.5 py-2.5 text-sm">
                   <span

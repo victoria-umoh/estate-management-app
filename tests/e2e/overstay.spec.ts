@@ -65,7 +65,9 @@ test('an overstaying visitor is raised by the sweep and surfaces on the security
       gateId,
       direction: 'in',
     });
-    expect(admitted.admitted, 'the gate admitted the visitor before their window closed').toBe(true);
+    expect(admitted.admitted, 'the gate admitted the visitor before their window closed').toBe(
+      true,
+    );
 
     // Waits on the server's own view of the pass rather than on a clock in the
     // test: once it reports the visitor as overstaying, the sweep has something
@@ -73,9 +75,8 @@ test('an overstaying visitor is raised by the sweep and surfaces on the security
     await expect
       .poll(
         async () => {
-          const inside = await officer.get<Array<{ code: string; overstaying: boolean }>>(
-            '/security/inside',
-          );
+          const inside =
+            await officer.get<Array<{ code: string; overstaying: boolean }>>('/security/inside');
           return inside.find((visitor) => visitor.code === pass.code)?.overstaying ?? false;
         },
         { timeout: 180_000, intervals: [2_000] },
@@ -99,9 +100,7 @@ test('an overstaying visitor is raised by the sweep and surfaces on the security
     ).toBe(true);
 
     await officerPage.goto('/security');
-    await expect(
-      officerPage.getByRole('heading', { name: 'Overstaying visitors' }),
-    ).toBeVisible();
+    await expect(officerPage.getByRole('heading', { name: 'Overstaying visitors' })).toBeVisible();
     // The innermost element carrying both the visitor and their code — the row
     // an officer would read.
     const row = officerPage

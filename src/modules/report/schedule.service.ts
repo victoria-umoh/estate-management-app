@@ -12,7 +12,11 @@ import { notificationService } from '@/modules/notification';
 import { roleService } from '@/modules/role';
 import { userRepository } from '@/modules/user/repository';
 import { reportService } from './service';
-import { ReportScheduleModel, type ReportScheduleDoc, type ScheduleCadence } from './schedule.schema';
+import {
+  ReportScheduleModel,
+  type ReportScheduleDoc,
+  type ScheduleCadence,
+} from './schedule.schema';
 import { REPORT_REGISTRY, type ReportType } from './types';
 
 const log = createLogger('report:schedule');
@@ -47,7 +51,10 @@ function rangeFor(cadence: ScheduleCadence, at: Date): { from: Date; to: Date } 
   return { from, to };
 }
 
-function nextRunAfter(schedule: Pick<ReportScheduleDoc, 'cadence' | 'dayOfWeek' | 'dayOfMonth' | 'hour'>, after: Date): Date {
+function nextRunAfter(
+  schedule: Pick<ReportScheduleDoc, 'cadence' | 'dayOfWeek' | 'dayOfMonth' | 'hour'>,
+  after: Date,
+): Date {
   const next = new Date(after);
   next.setMinutes(0, 0, 0);
   next.setHours(schedule.hour);
@@ -116,7 +123,15 @@ export class ReportScheduleService {
       ownerMembershipId: new Types.ObjectId(membershipId),
       ownerUserId: new Types.ObjectId(context.userId),
       active: true,
-      nextRunAt: nextRunAfter({ ...input, hour, dayOfWeek: input.dayOfWeek ?? null, dayOfMonth: input.dayOfMonth ?? null }, new Date()),
+      nextRunAt: nextRunAfter(
+        {
+          ...input,
+          hour,
+          dayOfWeek: input.dayOfWeek ?? null,
+          dayOfMonth: input.dayOfMonth ?? null,
+        },
+        new Date(),
+      ),
     });
 
     await auditService.record(context, {
@@ -134,7 +149,11 @@ export class ReportScheduleService {
     return schedule;
   }
 
-  async setActive(context: RequestContext, id: string, active: boolean): Promise<ReportScheduleDoc> {
+  async setActive(
+    context: RequestContext,
+    id: string,
+    active: boolean,
+  ): Promise<ReportScheduleDoc> {
     assertCan(context, PERMISSIONS.REPORT_SCHEDULE);
 
     const schedule = await reportScheduleRepository.updateById(context, id, { $set: { active } });
@@ -168,7 +187,9 @@ export class ReportScheduleService {
    * the permission is skipped and recorded, not silently sent — a standing
    * instruction that outlives its author's authority is a slow data leak.
    */
-  async runDue(now = new Date()): Promise<{ due: number; sent: number; skipped: number; failed: number }> {
+  async runDue(
+    now = new Date(),
+  ): Promise<{ due: number; sent: number; skipped: number; failed: number }> {
     const due = await ReportScheduleModel.find({
       active: true,
       deletedAt: null,
@@ -213,7 +234,10 @@ export class ReportScheduleService {
       } catch (error) {
         detail = error instanceof Error ? error.message.slice(0, 500) : 'Unknown failure.';
         result.failed++;
-        log.error({ err: error, scheduleId: schedule._id.toHexString() }, 'scheduled report failed');
+        log.error(
+          { err: error, scheduleId: schedule._id.toHexString() },
+          'scheduled report failed',
+        );
       }
 
       // Advanced whatever happened. A schedule that failed once must not retry

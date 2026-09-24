@@ -62,7 +62,12 @@ test('a resident invites a visitor, the gate admits them, and checkout closes th
   // --- The desk shows them inside ------------------------------------------
 
   await officer.goto('/security');
-  const insideRow = officer.locator('li').filter({ hasText: visitorName });
+  // The desk shows the same name in two lists — who is inside, and what just
+  // happened at the gate. They are named, so this asks for the one it means.
+  const insideRow = officer
+    .getByRole('list', { name: 'Currently inside' })
+    .locator('li')
+    .filter({ hasText: visitorName });
   await expect(insideRow).toContainText('inside');
 
   // --- Checkout closes the visit -------------------------------------------
@@ -79,7 +84,9 @@ test('a resident invites a visitor, the gate admits them, and checkout closes th
 
   await resident.goto('/my/visitors');
   const row = resident.locator('li').filter({ hasText: visitorName });
-  await expect(row).toContainText('checked-out');
+  // `completed` is the terminal status in VisitorPassStatus; there is no
+  // 'checked-out'. The visit is over, which is what the resident needs to see.
+  await expect(row).toContainText('completed');
 
   await residentContext.close();
   await officerContext.close();

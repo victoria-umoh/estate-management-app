@@ -48,7 +48,10 @@ test('an emergency reaches the security desk and can be acknowledged and resolve
   await card.getByRole('button', { name: 'Acknowledge' }).click();
 
   await expect(card).toContainText('acknowledged');
-  await expect(card.getByRole('button', { name: 'Acknowledge' })).toBeHidden();
+  // Disabled rather than removed. On a life-safety screen the controls keep
+  // their positions so a responder's muscle memory is not rearranged mid-
+  // incident; the state shows in the button being dead, not absent.
+  await expect(card.getByRole('button', { name: 'Acknowledge' })).toBeDisabled();
 
   // --- Resolved, with the written outcome the record requires --------------
 

@@ -10,7 +10,9 @@ import { api, contextFor, myMembershipId, unique } from './helpers';
  * been re-verified, so this test walks the resident all the way to checkout and
  * then insists the invoice is still outstanding — on the screen and in the API.
  */
-test('checkout does not mark an invoice paid on the browser redirect alone', async ({ browser }) => {
+test('checkout does not mark an invoice paid on the browser redirect alone', async ({
+  browser,
+}) => {
   const adminContext = await contextFor(browser, 'admin');
   const residentContext = await contextFor(browser, 'resident');
   const adminPage = await adminContext.newPage();
@@ -51,9 +53,10 @@ test('checkout does not mark an invoice paid on the browser redirect alone', asy
   await expect(afterRow).not.toContainText('paid');
   await expect(afterRow.getByRole('button', { name: 'Pay' })).toBeVisible();
 
-  const invoices = await resident.get<Array<{ number: string; status: string; outstanding: number }>>(
-    '/me/invoices?limit=50',
-  );
+  const invoices =
+    await resident.get<Array<{ number: string; status: string; outstanding: number }>>(
+      '/me/invoices?limit=50',
+    );
   const stored = invoices.find((candidate) => candidate.number === invoice.number);
   expect(stored?.status, 'the invoice did not flip to paid on a redirect').not.toBe('paid');
   expect(stored?.outstanding).toBe(250_000);

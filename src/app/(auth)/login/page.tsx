@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,11 @@ export default function LoginPage() {
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // Runs only on the client, so it marks the point at which the submit handler
+  // is actually attached.
+  useEffect(() => setReady(true), []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -141,7 +146,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" block size="lg" loading={busy}>
+            {/*
+              Disabled until the component has mounted.
+
+              The form has no `action`, so a click landing before React hydrates
+              submits it natively: the browser reloads /login with the fields
+              cleared and no request ever reaches the API. On a fast machine the
+              window is invisible; on the cheap tablets this runs on it is not,
+              and the person just sees their typing vanish.
+            */}
+            <Button type="submit" block size="lg" loading={busy} disabled={!ready}>
               {choices && !estateId ? 'Choose an estate' : 'Sign in'}
             </Button>
           </form>

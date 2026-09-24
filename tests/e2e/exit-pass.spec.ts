@@ -74,9 +74,7 @@ test('an exit pass is approved, spent at the gate, and refused on a second attem
   await officer.getByRole('button', { name: 'Check' }).click();
 
   await expect(officer.getByText('Do not release')).toBeVisible();
-  await expect(
-    officer.getByRole('button', { name: 'Goods have left — close pass' }),
-  ).toBeHidden();
+  await expect(officer.getByRole('button', { name: 'Goods have left — close pass' })).toBeHidden();
 
   await residentContext.close();
   await approverContext.close();

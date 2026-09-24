@@ -1,4 +1,10 @@
-import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  expect,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test';
 
 /**
  * Shared machinery for the end-to-end suite.
@@ -87,10 +93,16 @@ export async function contextFor(browser: Browser, role: Role): Promise<BrowserC
  * so a broken fixture never masquerades as a broken assertion.
  */
 export function api(request: APIRequestContext) {
-  async function unwrap(method: string, path: string, response: Awaited<ReturnType<APIRequestContext['get']>>) {
-    const body = (await response.json().catch(() => null)) as
-      | { success?: boolean; data?: unknown; error?: { code?: string; message?: string } }
-      | null;
+  async function unwrap(
+    method: string,
+    path: string,
+    response: Awaited<ReturnType<APIRequestContext['get']>>,
+  ) {
+    const body = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      data?: unknown;
+      error?: { code?: string; message?: string };
+    } | null;
 
     if (!response.ok() || body?.success !== true) {
       throw new Error(

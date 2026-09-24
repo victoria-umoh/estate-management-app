@@ -52,9 +52,19 @@ test("a resident cannot read another household's contact details", async ({ brow
     `/residents/${neighbour!.membershipId}`,
   );
 
+  // The API 404s for a resident reading a record outside their own address, so
+  // the screen renders a not-found state rather than a profile. Waiting on an
+  // <h1> was written against the leak: the page used to show the neighbour.
+  const apiResponse = residentPage.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/v1/residents/${neighbour!.membershipId}`) &&
+      response.request().method() === 'GET',
+  );
+
   await residentPage.goto(`/admin/residents/${neighbour!.membershipId}`);
-  // Give the screen its chance to render whatever it is going to render.
-  await expect(residentPage.getByRole('heading', { level: 1 })).toBeVisible();
+
+  // A 404, not a 403: confirming the membership exists is itself a disclosure.
+  expect((await apiResponse).status()).toBe(404);
 
   await expect(
     residentPage.getByText(detail.email),
