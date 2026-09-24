@@ -1,4 +1,4 @@
-name: PrimeEsatate Saas CI - PROD
+name: PrimeEstate SaaS CI — PROD
 
 on:
   push:
@@ -8,27 +8,41 @@ jobs:
   check:
     runs-on: estate-management-app-prod
 
-    # Build-time only — no real database connection is made.
-    # prisma generate just reads schema.prisma; next build renders
-    # every route as dynamic.
+    # Build-time only. No database connection is made: `next build` renders
+    # every route as dynamic, and the Mongo connection is opened lazily on the
+    # first request.
     #
-    # Real secrets (JWT_SECRET, SSO_COOKIE_SECRET_V2, etc.) are only
-    # read at request time inside route handlers, never at module load,
-    # so dummy values are safe here.
+    # The config loader (src/core/config/schema.ts) validates the whole
+    # environment with Zod at module load, so the build fails outright on a
+    # missing or malformed variable rather than at request time. That is why
+    # placeholders are needed at all, and why the secrets below are real
+    # 64-character hex: the loader rejects anything shorter, and
+    # JWT_REFRESH_SECRET must differ from JWT_ACCESS_SECRET, otherwise a leaked
+    # access key could mint long-lived sessions.
+    #
+    # These are throwaway CI values. Production secrets come from
+    # `pnpm keys:generate` and never appear in a workflow file.
     env:
-      DATABASE_URL: "mysql://ci:ci@127.0.0.1:3306/ci"
-      JWT_SECRET: "ci-only-placeholder-not-a-real-secret"
-      SSO_COOKIE_SECRET_V2: "ci-only-placeholder-not-a-real-secret"
-      API_BEARER_TOKEN: "ci-only-placeholder"
-      ANTHROPIC_API_KEY: "ci-only-placeholder"
-      CRON_SECRET: "ci-only-placeholder"
-      PDF_MASTER_PASSWORD: "ci-only-placeholder"
-      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-      NEXT_PUBLIC_APP_NAME: "PrimeEstate"
+      APP_URL: "http://localhost:3800"
+      APP_NAME: "PrimeEstate"
+      MONGODB_URI: "mongodb://127.0.0.1:27017/ci"
+      JWT_ACCESS_SECRET: "1111111111111111111111111111111111111111111111111111111111111111"
+      JWT_REFRESH_SECRET: "2222222222222222222222222222222222222222222222222222222222222222"
+      ENCRYPTION_KEY: "3333333333333333333333333333333333333333333333333333333333333333"
+      ENCRYPTION_BLIND_INDEX_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
+      QR_SIGNING_SECRET: "5555555555555555555555555555555555555555555555555555555555555555"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      # pnpm must exist before setup-node, because `cache: pnpm` resolves the
+      # store path by running pnpm. The other order fails on a clean runner.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -36,28 +50,23 @@ jobs:
           node-version: "22"
           cache: "pnpm"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # tsc needs the generated Prisma client's types to resolve;
-      # generated/prisma/ is gitignored.
-      - name: Generate Prisma Client
-        run: pnpm exec prisma generate
-
       - name: Typecheck
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
 
-      # Soft gate for now — eslint/eslint-config-next were only just
-      # wired up and surfaced a large pre-existing backlog.
       - name: Lint
         run: pnpm lint
-        continue-on-error: true
 
+      # Unit and integration tests run against mongodb-memory-server, so they
+      # need no service container. This is where tenant isolation is proved:
+      # every module asserts that estate A cannot read or write estate B.
+      - name: Test
+        run: pnpm test
+
+      # `pnpm build` also runs the navigation coverage and bundle budget
+      # checks, so a nav link pointing at a screen that does not exist, or a
+      # route that outgrows its budget, fails here.
       - name: Build
         run: pnpm build
