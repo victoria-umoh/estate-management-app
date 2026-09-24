@@ -221,6 +221,20 @@ export const PERMISSIONS = {
   AUDIT_VIEW: 'audit.view',
   AUDIT_EXPORT: 'audit.export',
 
+  /**
+   * Platform-level account administration. Reserved, not estate-level.
+   *
+   * A user is global; a membership is per-estate. An estate administrator
+   * manages memberships — `resident.view`, `resident.suspend`,
+   * `resident.delete` — and must not reach the account behind one, because
+   * suspending a *user* from one estate would lock that person out of another
+   * estate they belong to, which is somebody else's tenant and not this
+   * chairman's business.
+   *
+   * These were granted to the chairman and manager roles, promising a
+   * capability that would have been wrong to build. The grants are gone; the
+   * strings stay so that any custom role already carrying one still validates.
+   */
   USER_VIEW: 'user.view',
   USER_CREATE: 'user.create',
   USER_UPDATE: 'user.update',
