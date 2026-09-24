@@ -1,0 +1,63 @@
+name: PrimeEsatate Saas CI - PROD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: estate-management-app-prod
+
+    # Build-time only — no real database connection is made.
+    # prisma generate just reads schema.prisma; next build renders
+    # every route as dynamic.
+    #
+    # Real secrets (JWT_SECRET, SSO_COOKIE_SECRET_V2, etc.) are only
+    # read at request time inside route handlers, never at module load,
+    # so dummy values are safe here.
+    env:
+      DATABASE_URL: "mysql://ci:ci@127.0.0.1:3306/ci"
+      JWT_SECRET: "ci-only-placeholder-not-a-real-secret"
+      SSO_COOKIE_SECRET_V2: "ci-only-placeholder-not-a-real-secret"
+      API_BEARER_TOKEN: "ci-only-placeholder"
+      ANTHROPIC_API_KEY: "ci-only-placeholder"
+      CRON_SECRET: "ci-only-placeholder"
+      PDF_MASTER_PASSWORD: "ci-only-placeholder"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+      NEXT_PUBLIC_APP_NAME: "PrimeEstate"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # tsc needs the generated Prisma client's types to resolve;
+      # generated/prisma/ is gitignored.
+      - name: Generate Prisma Client
+        run: pnpm exec prisma generate
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      # Soft gate for now — eslint/eslint-config-next were only just
+      # wired up and surfaced a large pre-existing backlog.
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Build
+        run: pnpm build
