@@ -134,6 +134,17 @@ from the proxy.
 ## 6. Before you go live
 
 ```bash
+pnpm verify          # everything, in fail-fast order
+pnpm verify --fast   # everything except the end-to-end suite
+```
+
+That runs typecheck, lint, the unit suite, the build with its navigation and
+bundle-budget checks, the index audit, a reseed, the OpenAPI freshness check,
+`pnpm smoke` and the end-to-end suite — stopping and restarting the dev server
+at the right points, because `build` and `dev` share `.next` and corrupt each
+other. The individual commands still work if you want one of them:
+
+```bash
 pnpm typecheck && pnpm lint && pnpm test && pnpm build
 pnpm smoke          # against a running instance with seeded data
 ```
