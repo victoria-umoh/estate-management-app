@@ -146,6 +146,11 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       P.ESTATE_SETTINGS_MANAGE,
       P.SUBSCRIPTION_VIEW,
       P.SUBSCRIPTION_MANAGE,
+      // The chairman sees the estate-wide document register, so they get the
+      // act that page offers. Every other role above the manager already had
+      // this; the chairman was the gap, and the page's delete button refused
+      // for the one account most likely to press it.
+      P.DOCUMENT_DELETE,
       // Deliberately NOT granted: resident.viewNin. Running the estate does not
       // require reading anyone's national identity number.
     ],
@@ -320,6 +325,15 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       P.INCIDENT_VIEW_ALL,
       P.INCIDENT_CREATE,
       P.INCIDENT_UPDATE,
+      // An officer records incidents, so they attach and read the evidence on
+      // one. This role is the only staff role that does not inherit the
+      // resident baseline, which is why it alone had no document access at
+      // all -- an officer could open an incident and not see its photograph.
+      // NOT document.delete: recording what happened must not include
+      // unrecording it.
+      P.DOCUMENT_VIEW,
+      P.DOCUMENT_UPLOAD,
+      P.DOCUMENT_DOWNLOAD,
       P.EMERGENCY_VIEW,
       P.EMERGENCY_CREATE,
       P.EMERGENCY_VIEW_ALL,
