@@ -8,6 +8,18 @@ import { defineConfig, devices } from '@playwright/test';
  * and two Next servers sharing one .next directory destroy each other's build
  * output.
  */
+/**
+ * A note on flakes.
+ *
+ * This suite passes end to end on a freshly started dev server and degrades on
+ * a server that has been up for a while — the Next dev server slows badly under
+ * sustained recompilation, to the point of taking tens of seconds to serve a
+ * route it has already built, and the specs then time out one by one.
+ *
+ * Serialising the suite was tried and is not the answer: it tripled the runtime
+ * and failed the same specs. If a run is flaky, restart the server (`pnpm
+ * clean && pnpm dev`) before looking for a cause in the tests.
+ */
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3800}`;
 
 export default defineConfig({

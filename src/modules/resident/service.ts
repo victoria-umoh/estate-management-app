@@ -207,6 +207,25 @@ export class ResidentService {
   async gateIdentity(context: RequestContext, membershipId: string): Promise<GateIdentity> {
     assertCan(context, PERMISSIONS.RESIDENT_VIEW);
 
+    return this.identityCard(context, membershipId);
+  }
+
+  /**
+   * The card itself, without the staff permission.
+   *
+   * `ownIdentity` used to delegate to `gateIdentity`, which asserts
+   * `resident.view` — a permission the plain `resident`, `tenant` and
+   * `dependant` roles do not hold. So an approved resident opening their own
+   * digital ID was told "could not load your ID; your membership may still be
+   * awaiting approval", which was both wrong and the opposite of reassuring.
+   *
+   * The caller decides who may read it: `gateIdentity` for an officer at the
+   * barrier, `ownIdentity` for the person whose card it is.
+   */
+  private async identityCard(
+    context: RequestContext,
+    membershipId: string,
+  ): Promise<GateIdentity> {
     const membership = await membershipRepository.findByIdOrFail(context, membershipId);
     const user = await userRepository.findById(membership.userId);
     if (!user) throw new NotFoundError('Resident');
@@ -242,7 +261,7 @@ export class ResidentService {
       throw new NotFoundError('Active membership');
     }
 
-    return this.gateIdentity(context, membershipId);
+    return this.identityCard(context, membershipId);
   }
 
   /** Approve a pending membership and issue its resident code. */

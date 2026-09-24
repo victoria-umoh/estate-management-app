@@ -55,6 +55,13 @@ test('an exit pass is approved, spent at the gate, and refused on a second attem
   await pendingRow.getByRole('button', { name: 'Approve' }).click();
   await approver.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
 
+  // Wait for the approval to land before another page depends on it. The
+  // officer verifies from a different context, and without this the check can
+  // reach the server first and be told, correctly, that the pass is not yet
+  // approved.
+  await expect(approver.getByRole('dialog')).toBeHidden();
+  await expect(approver.locator('li').filter({ hasText: carrier })).toContainText(/approved/i);
+
   // --- The gate checks the load and closes the pass ------------------------
 
   await officer.goto('/security/passes');

@@ -147,6 +147,22 @@ webhooks are both rejected. Point it at a staging instance with `BASE_URL`.
 `pnpm build` also fails if a navigation link has no page behind it, or if a
 bundle exceeds its budget.
 
+**End-to-end**, covering the six acceptance workflows plus appearance at 320px,
+tablet and desktop in both themes:
+
+```bash
+pnpm clean && pnpm dev          # in one terminal
+E2E_BASE_URL=http://localhost:3800 pnpm test:e2e
+```
+
+The `clean` matters. This suite passes 38 of 38 on a freshly started dev server
+and degrades on one that has been up a while — `next dev` slows badly under
+sustained recompilation, eventually taking tens of seconds to serve a route it
+has already built, and the specs then time out one by one. Serialising the suite
+was tried as a fix and is not one: it tripled the runtime and failed the same
+specs. If a run is flaky, restart the server before looking for a cause in the
+tests.
+
 ### Checklist
 
 - [ ] `ENCRYPTION_KEY` and `ENCRYPTION_BLIND_INDEX_KEY` are different, and both
