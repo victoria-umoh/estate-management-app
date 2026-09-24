@@ -6,7 +6,13 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { SkeletonTable } from '@/components/ui/skeleton';
@@ -310,8 +316,8 @@ function RenewDialog({
         <DialogHeader>
           <DialogTitle>Renew tenancy</DialogTitle>
           <DialogDescription>
-            The outgoing lease window is kept on the record, so who was entitled to
-            be here, and when, stays answerable.
+            The outgoing lease window is kept on the record, so who was entitled to be here, and
+            when, stays answerable.
           </DialogDescription>
         </DialogHeader>
 
