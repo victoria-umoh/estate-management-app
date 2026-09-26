@@ -104,6 +104,18 @@ export const NAVIGATION: NavSection[] = [
         permissions: [PERMISSIONS.INVOICE_VIEW],
       },
       { label: 'Digital ID', href: '/my/id', icon: BadgeCheck },
+      {
+        label: 'Service requests',
+        href: '/my/requests',
+        icon: Wrench,
+        permissions: [PERMISSIONS.SERVICE_REQUEST_CREATE],
+      },
+      {
+        label: 'Safety',
+        href: '/my/safety',
+        icon: Siren,
+        permissions: [PERMISSIONS.EMERGENCY_CREATE, PERMISSIONS.INCIDENT_CREATE],
+      },
     ],
   },
   {

@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, Check, Copy, Plus, Ticket, TriangleAlert } from 'lucide-react';
+import { CalendarClock, Check, Copy, HardHat, Plus, Ticket, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
-import { api } from '@/lib/api/client';
+import { ApiRequestError, api } from '@/lib/api/client';
 
 /**
  * The passes this resident is hosting.
@@ -33,6 +33,14 @@ import { api } from '@/lib/api/client';
  * as long as the receipt is open and never written to storage, so closing the
  * dialog genuinely destroys it. The screen says so rather than letting someone
  * discover it later.
+ *
+ * Temporary passes live on the same screen because a resident reaches for them
+ * in the same moment — "someone is coming" — but they are a different thing and
+ * are labelled as one. A visitor pass admits a guest for one visit and is spent
+ * at check-out; a temporary pass is reusable, in and out as often as needed,
+ * until its window closes. It is what a contractor on a three-day job or a
+ * carer visiting daily needs, and handing either a string of visitor passes is
+ * the workaround it replaces.
  */
 interface VisitorPass {
   id: string;
@@ -60,6 +68,26 @@ interface CreatedPass {
   token: string;
 }
 
+interface CreatedTemporaryPass {
+  id: string;
+  code: string;
+  holderName: string;
+  status: string;
+  validFrom: string;
+  validUntil: string;
+  token: string;
+}
+
+/** What the one-time receipt needs, whichever kind of pass it is for. */
+interface Receipt {
+  kind: 'visitor' | 'temporary';
+  name: string;
+  code: string;
+  from: string;
+  until: string;
+  token: string;
+}
+
 const PAGE_SIZE = 20;
 
 const TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'info'> = {
@@ -76,7 +104,11 @@ export default function MyVisitorsPage() {
   const [passes, setPasses] = useState<VisitorPass[] | null>(null);
   const [page, setPage] = useState(1);
   const [failed, setFailed] = useState(false);
-  const [created, setCreated] = useState<CreatedPass | null>(null);
+  const [created, setCreated] = useState<Receipt | null>(null);
+  // Temporary passes issued from this screen. There is no resident-scoped list
+  // of them on the server, so this is only what was issued in this visit —
+  // codes only, never the token.
+  const [temporary, setTemporary] = useState<CreatedTemporaryPass[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -111,7 +143,14 @@ export default function MyVisitorsPage() {
         <h1 className="text-xl font-semibold tracking-tight">My visitors</h1>
         <CreatePassDialog
           onCreated={(pass) => {
-            setCreated(pass);
+            setCreated({
+              kind: 'visitor',
+              name: pass.visitorName,
+              code: pass.code,
+              from: pass.expectedArrival,
+              until: pass.expectedDeparture,
+              token: pass.token,
+            });
             setPage(1);
             void load();
           }}
@@ -203,6 +242,22 @@ export default function MyVisitorsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <TemporaryPasses
+        issued={temporary}
+        onIssued={(pass) => {
+          setTemporary((current) => [pass, ...current]);
+          setCreated({
+            kind: 'temporary',
+            name: pass.holderName,
+            code: pass.code,
+            from: pass.validFrom,
+            until: pass.validUntil,
+            token: pass.token,
+          });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
     </div>
   );
 }
@@ -335,7 +390,7 @@ function CreatePassDialog({ onCreated }: { onCreated: (pass: CreatedPass) => voi
  * chance to read it, and storing it would move a live credential somewhere any
  * script on the origin could reach.
  */
-function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => void }) {
+function PassReceipt({ pass, onDismiss }: { pass: Receipt; onDismiss: () => void }) {
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -357,13 +412,14 @@ function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => 
       <CardHeader>
         <CardTitle className="text-success flex items-center gap-2">
           <Check className="size-5" aria-hidden />
-          Pass created for {pass.visitorName}
+          {pass.kind === 'temporary' ? 'Temporary pass' : 'Pass'} created for {pass.name}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col items-center gap-2">
           <p className="text-muted-foreground text-xs tracking-wide uppercase">
-            Gate code — read this out to your guest
+            Gate code —{' '}
+            {pass.kind === 'temporary' ? 'give this to them' : 'read this out to your guest'}
           </p>
           <BigCode code={pass.code} />
         </div>
@@ -373,7 +429,7 @@ function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => 
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qr}
-              alt={`QR code for ${pass.visitorName}'s pass`}
+              alt={`QR code for ${pass.name}'s pass`}
               className="size-40 shrink-0 rounded-lg bg-white p-2"
             />
           )}
@@ -381,9 +437,11 @@ function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => 
             <span className="flex items-start gap-2">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
               <span>
-                This QR is shown once and cannot be retrieved again. Send it to your guest now — if
-                you close this, you will need to issue a new pass. The gate code above stays
-                available in the list below.
+                This QR is shown once and cannot be retrieved again. Send it to them now — if you
+                close this, you will need to issue a new pass.{' '}
+                {pass.kind === 'temporary'
+                  ? 'It works every time they come and go until the pass expires.'
+                  : 'The gate code above stays available in the list below.'}
               </span>
             </span>
           </Alert>
@@ -391,7 +449,7 @@ function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => 
 
         <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
           <CalendarClock className="size-3.5" aria-hidden />
-          Valid {formatWhen(pass.expectedArrival)} → {formatWhen(pass.expectedDeparture)}
+          Valid {formatWhen(pass.from)} → {formatWhen(pass.until)}
         </p>
 
         <Button variant="outline" block onClick={onDismiss}>
@@ -399,6 +457,225 @@ function PassReceipt({ pass, onDismiss }: { pass: CreatedPass; onDismiss: () => 
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Issuing temporary passes, and the ones issued in this visit.
+ *
+ * Not every role may issue one — the estate decides whether residents can, or
+ * whether it goes through the office. The refusal is caught and explained here
+ * rather than shown as a failure, and the card then says who to ask.
+ */
+function TemporaryPasses({
+  issued,
+  onIssued,
+}: {
+  issued: CreatedTemporaryPass[];
+  onIssued: (pass: CreatedTemporaryPass) => void;
+}) {
+  const [denied, setDenied] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1">
+          <CardTitle className="flex items-center gap-2">
+            <HardHat className="size-4" aria-hidden />
+            Temporary passes
+          </CardTitle>
+          <CardDescription>
+            For someone who comes and goes over several days — a contractor, a carer, a tutor.
+            Reusable until it expires, where a visitor pass covers a single visit.
+          </CardDescription>
+        </div>
+        {!denied && (
+          <CreateTemporaryPassDialog onIssued={onIssued} onDenied={() => setDenied(true)} />
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {denied && (
+          <Alert tone="info" title="Issued by the estate office">
+            Your estate has not enabled residents to issue temporary passes. Ask the estate office
+            to issue one for the person and the dates you need.
+          </Alert>
+        )}
+
+        {issued.length > 0 && (
+          <ul aria-label="Temporary passes issued" className="divide-border divide-y">
+            {issued.map((pass) => (
+              <li key={pass.id} className="flex flex-wrap items-center gap-2 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{pass.holderName}</span>
+                    <Badge tone="info" size="sm" dot>
+                      {pass.status}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                    {formatWhen(pass.validFrom)} → {formatWhen(pass.validUntil)}
+                  </p>
+                </div>
+                <CopyableCode code={pass.code} />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {!denied && (
+          <p className="text-muted-foreground text-xs">
+            Note the code when you issue one: temporary passes are not listed here afterwards, and
+            the estate office can withdraw one early if the work finishes.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CreateTemporaryPassDialog({
+  onIssued,
+  onDenied,
+}: {
+  onIssued: (pass: CreatedTemporaryPass) => void;
+  onDenied: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setProblem(null);
+
+    const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? '').trim();
+
+    const from = text('validFrom');
+    const until = text('validUntil');
+
+    if (from && until && new Date(until) <= new Date(from)) {
+      setProblem('The pass must end after it starts.');
+      setBusy(false);
+      return;
+    }
+
+    try {
+      const pass = await api.post<CreatedTemporaryPass>('/temporary-passes', {
+        holderName: text('holderName'),
+        purpose: text('purpose'),
+        // Optional fields are omitted rather than sent blank. A blank start
+        // means "from now", which the server applies itself.
+        ...(text('holderPhone') ? { holderPhone: text('holderPhone') } : {}),
+        ...(text('company') ? { company: text('company') } : {}),
+        ...(text('vehiclePlate') ? { vehiclePlate: text('vehiclePlate') } : {}),
+        ...(from ? { validFrom: new Date(from).toISOString() } : {}),
+        validUntil: new Date(until).toISOString(),
+      });
+
+      setOpen(false);
+      onIssued(pass);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 403) {
+        setOpen(false);
+        onDenied();
+        return;
+      }
+
+      // A 422 carries the estate's own limit ("may not exceed 14 days"),
+      // which is worth showing as it is.
+      setProblem(
+        error instanceof ApiRequestError && error.status < 500
+          ? error.message
+          : 'Could not issue the pass. Check the details and try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="shrink-0">
+          <Plus aria-hidden />
+          Issue
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Issue a temporary pass</DialogTitle>
+          <DialogDescription>
+            One pass they can use every time they come and go, until it expires. For a single visit,
+            create a visitor pass instead.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={submit} className="space-y-3">
+          {problem && <Alert tone="danger">{problem}</Alert>}
+
+          <Input name="holderName" label="Their name" required minLength={2} maxLength={120} />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              name="holderPhone"
+              label="Phone"
+              type="tel"
+              maxLength={20}
+              hint="Optional"
+              autoComplete="off"
+            />
+            <Input name="company" label="Company" maxLength={120} hint="Optional" />
+          </div>
+
+          <Input
+            name="purpose"
+            label="What are they here for?"
+            required
+            minLength={2}
+            maxLength={200}
+            placeholder="e.g. Kitchen plumbing works"
+          />
+
+          <Input
+            name="vehiclePlate"
+            label="Vehicle plate"
+            maxLength={20}
+            hint="Optional"
+            className="uppercase"
+            autoComplete="off"
+          />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              name="validFrom"
+              label="Valid from"
+              type="datetime-local"
+              hint="Optional — defaults to now"
+            />
+            <Input
+              name="validUntil"
+              label="Valid until"
+              type="datetime-local"
+              required
+              hint="Estates cap how long one can run"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={busy}>
+              Issue pass
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
