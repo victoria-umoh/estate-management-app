@@ -53,6 +53,14 @@ const SCREENS = [
   ['/admin/audit', 'admin', 'udit'],
   ['/admin/roles', 'admin', 'ole'],
   ['/admin/settings', 'admin', 'etting'],
+  ['/admin/tenancies', 'admin', 'enanc'],
+  ['/admin/reports', 'admin', 'Reports'],
+  ['/my/requests', 'resident', 'My requests'],
+  ['/my/safety', 'resident', 'Safety'],
+  ['/account', 'resident', 'Account'],
+  ['/security/passes', 'officer', 'Passes desk'],
+  // Suspense-wrapped: the server renders only the shell, so check the shell.
+  ['/payments/callback?reference=PAY-SMOKE', 'resident', 'PrimeEstate'],
 ];
 
 /**
@@ -99,6 +107,10 @@ const ENDPOINTS = [
   ['/search?q=Ada', 'admin'],
   ['/subscription', 'admin'],
   ['/dashboard', 'resident'],
+  ['/auth/sessions', 'resident'],
+  ['/service-requests', 'resident'],
+  ['/change-requests', 'admin'],
+  ['/reports/schedules', 'admin'],
 ];
 
 /**
@@ -188,6 +200,12 @@ async function main() {
     ['/', 'PrimeEstate'],
     ['/pricing', 'Professional'],
     ['/login', 'ign in'],
+    ['/forgot-password', 'Reset your password'],
+    // Suspense-wrapped token pages: the server renders only the shell.
+    ['/register', 'PrimeEstate'],
+    ['/reset-password', 'PrimeEstate'],
+    ['/verify-email', 'PrimeEstate'],
+    ['/accept-invitation', 'PrimeEstate'],
   ]) {
     const response = await fetch(`${BASE}${path}`, { redirect: 'manual' });
     const html = response.ok ? await response.text() : '';

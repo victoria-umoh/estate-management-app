@@ -4,8 +4,8 @@
 "Next action" below and continue from there. It is updated at every phase
 boundary and whenever a decision is made that future work depends on.
 
-**Last updated:** 2026-09-24
-**Current phase:** 14 — closing the last permissions that gated nothing
+**Last updated:** 2026-09-26
+**Current phase:** 15 — every endpoint a person uses has a screen
 
 **The bar changed this phase.** A phase is no longer done when the service works
 and the tests are green. It is done when the screen loads, signed in, as the
@@ -60,8 +60,48 @@ look like app defects and are not. The same suite went 36/38 in 10 minutes under
 contention and 38/38 in 2.5 minutes alone. Confirm nothing else is running
 (`ps aux | grep "[n]ext"`) before believing a build or e2e failure.
 
-**Next action:** `/admin/tenancies` has no screen — the tenancy API is complete
-and navigation is unowned, so the nav entry and page are the remaining gap.
+**Phase 15 is complete and verified.** The permission count said the backlog was
+done; a second measure said otherwise. About fifty working endpoints had no
+screen calling them — including sign-out, password reset, the emergency button
+and every admin create/edit action. Now built: sign-out and an account page
+(password change, signed-in devices), forgot/reset password, resident
+self-registration and email verification, invitation acceptance, resident
+service requests, a Safety page (hold-to-send emergency, incident reports),
+temporary pass issue, the payment return page, invitations and change-request
+approvals, resident suspend/delete/roles/dependants, custom role edit/delete,
+property create/assign/delete, vehicle register/edit/verify/delete, gate
+management, fee and invoice actions, manual payments, report schedules,
+platform estate creation, gate deny, and temporary pass revoke.
+
+Backend fixes found on the way: login 401'd on a stale session cookie; phone
+OTP never recorded the phone as verified and would text any number; register
+accepted estates and properties that do not exist; a weak password burned an
+invitation; manual payments could credit a draft invoice or another household;
+a resumed report schedule fired at once; the client retried wrong-password
+401s through a refresh, spending two attempts per guess.
+
+Gate set: typecheck 0, lint clean, **979 unit tests / 48 files**, build green
+with 31 nav links and all bundles within budget, `pnpm smoke` all green with
+the new screens added, e2e 37/38 — `overstay.spec.ts` dropped its connection
+(ECONNRESET) twice and passed on the third run.
+
+**Next action:** decide the open questions below; then an incident detail page
+with comments, and a shared permissions context so pages stop decoding the
+access cookie themselves (finance, passes and platform do it today).
+
+**Open decisions (need the owner):**
+- Should residents issue temporary passes? No resident role holds
+  `temporaryPass.create`, and there is no "my temporary passes" list endpoint,
+  so the form on `/my/visitors` currently shows "issued by the estate office".
+- Should phone/NIN checks happen *before* approval? Today they need a signed-in
+  session and pending members cannot sign in, so they happen after
+  (`/register/identity`, not yet linked from the dashboard or approval email).
+- `/api/v1/gate/verify` is dead — `/gate/scan` does the same check and logs it.
+- There is no way to invite a new estate's chairman from the platform console.
+- `recordManualDenial` always logs direction `in`.
+- CI has never started: every run is `startup_failure` with no jobs. The
+  workflow file and self-hosted runner check out; the reason is only shown on
+  the GitHub run page (likely an account billing lock).
 
 **Standing caveats:**
 - `pnpm build` and `pnpm dev` share `.next` and corrupt each other. Use
