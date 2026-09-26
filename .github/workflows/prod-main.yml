@@ -3,6 +3,14 @@ name: PrimeEstate SaaS CI — PROD
 on:
   push:
     branches: [main]
+  # Redeploy the current main by hand, e.g. after changing the server's .env.
+  workflow_dispatch:
+
+# One run at a time. A second push waits for the first rather than building
+# over it, and never cancels a deploy halfway through a reload.
+concurrency:
+  group: prod-main
+  cancel-in-progress: false
 
 jobs:
   check:
@@ -70,3 +78,92 @@ jobs:
       # route that outgrows its budget, fails here.
       - name: Build
         run: pnpm build
+
+  # Runs on the production host itself, through its self-hosted runner, and only
+  # once every check above has passed.
+  #
+  # It deploys into the app's own directory (repository variable APP_DIR), not
+  # the runner's workspace: that directory holds the real .env and .env.local,
+  # which are never in git, and the PM2 processes point at it. The runner must
+  # run as the same user that owns those PM2 processes.
+  deploy:
+    needs: check
+    runs-on: estate-management-app-prod
+    environment: production
+
+    env:
+      APP_DIR: ${{ vars.APP_DIR }}
+
+    steps:
+      - name: Check the deploy target
+        run: |
+          if [ -z "$APP_DIR" ]; then
+            echo "::error::Set the APP_DIR repository variable to the app's directory on the server."
+            exit 1
+          fi
+          test -d "$APP_DIR/.git" || { echo "::error::$APP_DIR is not a git checkout."; exit 1; }
+          command -v pm2 >/dev/null || { echo "::error::pm2 is not on the runner's PATH."; exit 1; }
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # Fast-forward only: if someone edited tracked files on the server, stop
+      # and say so rather than overwrite them. Untracked files — the env files,
+      # logs/ — are untouched either way.
+      - name: Update the code
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          git fetch --prune origin main
+          git merge --ff-only "$GITHUB_SHA"
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: pnpm install --frozen-lockfile
+
+      # copy env
+      - name: Copy environment files
+        working-directory: ${{ env.APP_DIR }}
+        run: cp ../env.template .env
+
+      # Built here, against the server's real environment, rather than copied
+      # from the check job: the config loader validates it at build time.
+      - name: Build
+        working-directory: ${{ env.APP_DIR }}
+        run: pnpm build
+
+      - name: Sync database indexes
+        working-directory: ${{ env.APP_DIR }}
+        run: pnpm db:indexes
+
+      # `startOrReload` starts anything not yet running and gracefully reloads
+      # the rest; `--update-env` picks up changes made to the ecosystem file.
+      - name: Reload PM2
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          mkdir -p logs
+          pm2 startOrReload ecosystem.config.cjs --env production --update-env
+          pm2 save
+
+      # Fail the deploy, loudly, if the server does not come back up.
+      - name: Health check
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          port=$(grep -hE '^PORT=' .env.local .env 2>/dev/null | head -1 | cut -d= -f2)
+          for attempt in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:${port:-3000}/api/health" >/dev/null; then
+              echo "Healthy after ${attempt} attempt(s)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The app did not answer /api/health within 60 seconds."
+          pm2 logs estate-web --lines 50 --nostream
+          exit 1
