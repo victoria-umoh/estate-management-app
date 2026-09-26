@@ -17,7 +17,9 @@ const ChannelToggles = z.object({
  * response says what was actually stored.
  */
 const Body = z.object(
-  Object.fromEntries(NOTIFICATION_CATEGORIES.map((category) => [category, ChannelToggles.optional()])),
+  Object.fromEntries(
+    NOTIFICATION_CATEGORIES.map((category) => [category, ChannelToggles.optional()]),
+  ),
 );
 
 export const GET = defineRoute({

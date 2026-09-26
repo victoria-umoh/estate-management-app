@@ -265,9 +265,7 @@ export class RoleService {
     const membership = await membershipRepository.findByIdOrFail(context, membershipId);
 
     if (membership.userId.toHexString() === context.userId) {
-      throw new AuthorizationError(
-        'You cannot change your own roles. Ask another administrator.',
-      );
+      throw new AuthorizationError('You cannot change your own roles. Ask another administrator.');
     }
 
     // De-duplicated, so the same role sent twice is stored once. The

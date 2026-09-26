@@ -46,8 +46,16 @@ export interface SubjectAccessor {
    * reporting zero attachments for records that have some.
    */
   attachmentField?: string;
-  attach?: (context: RequestContext, subjectId: string, documentId: Types.ObjectId) => Promise<void>;
-  detach?: (context: RequestContext, subjectId: string, documentId: Types.ObjectId) => Promise<void>;
+  attach?: (
+    context: RequestContext,
+    subjectId: string,
+    documentId: Types.ObjectId,
+  ) => Promise<void>;
+  detach?: (
+    context: RequestContext,
+    subjectId: string,
+    documentId: Types.ObjectId,
+  ) => Promise<void>;
   /** For error messages and audit metadata. */
   label: string;
 }
@@ -172,7 +180,10 @@ export const SUBJECT_ACCESSORS: Record<DocumentSubjectType, SubjectAccessor> = {
 
       const pass = await exitPassRepository.findById(context, subjectId);
       if (!pass) notFound();
-      if (can(context, PERMISSIONS.EXIT_PASS_APPROVE) || can(context, PERMISSIONS.RESIDENT_VIEW_ALL)) {
+      if (
+        can(context, PERMISSIONS.EXIT_PASS_APPROVE) ||
+        can(context, PERMISSIONS.RESIDENT_VIEW_ALL)
+      ) {
         return;
       }
 

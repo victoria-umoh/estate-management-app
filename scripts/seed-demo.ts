@@ -114,8 +114,10 @@ async function resetDemoData(): Promise<void> {
   }
 
   const estateIds = estates.map((estate) => estate._id);
-  const memberships = await MembershipModel.find({ estateId: { $in: estateIds } }, { userId: 1 })
-    .lean();
+  const memberships = await MembershipModel.find(
+    { estateId: { $in: estateIds } },
+    { userId: 1 },
+  ).lean();
   const userIds = memberships.map((membership) => membership.userId);
 
   const db = mongoose.connection.db;
@@ -412,7 +414,9 @@ async function main(): Promise<void> {
   // every status on the finance screen has something behind it.
   const settled = await invoiceService.create(context, {
     membershipId: resident.membershipId,
-    lines: [{ feeCategoryId: dues._id.toHexString(), description: dues.name, unitAmount: dues.amount }],
+    lines: [
+      { feeCategoryId: dues._id.toHexString(), description: dues.name, unitAmount: dues.amount },
+    ],
     dueAt: new Date(Date.now() - 30 * 86_400_000),
   });
   await invoiceService.issue(context, settled._id.toHexString());

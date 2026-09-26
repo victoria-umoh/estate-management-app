@@ -332,7 +332,11 @@ export class ExitPassService {
       return { usable: false, message: 'This exit pass has expired.', pass };
     }
 
-    return { usable: true, message: 'Check the load against the manifest, then close the pass.', pass };
+    return {
+      usable: true,
+      message: 'Check the load against the manifest, then close the pass.',
+      pass,
+    };
   }
 
   /**

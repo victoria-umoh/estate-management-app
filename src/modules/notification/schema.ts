@@ -18,13 +18,7 @@ import type { TenantDocument } from '@/core/db';
  * grouping only: see MANDATORY_CATEGORIES below.
  */
 export type NotificationCategory =
-  | 'emergency'
-  | 'security'
-  | 'visitor'
-  | 'billing'
-  | 'announcement'
-  | 'maintenance'
-  | 'account';
+  'emergency' | 'security' | 'visitor' | 'billing' | 'announcement' | 'maintenance' | 'account';
 
 export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [
   'emergency',

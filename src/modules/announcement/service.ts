@@ -82,10 +82,7 @@ export class AnnouncementService {
     return announcement;
   }
 
-  async create(
-    context: RequestContext,
-    input: CreateAnnouncementInput,
-  ): Promise<AnnouncementDoc> {
+  async create(context: RequestContext, input: CreateAnnouncementInput): Promise<AnnouncementDoc> {
     assertCan(context, PERMISSIONS.ANNOUNCEMENT_CREATE);
 
     const audience = this.normaliseAudience(input.audience);
@@ -143,7 +140,8 @@ export class AnnouncementService {
       if (changes.title !== undefined) update.title = changes.title.trim();
       if (changes.body !== undefined) update.body = changes.body;
       if (changes.summary !== undefined) update.summary = changes.summary.trim();
-      if (changes.audience !== undefined) update.audience = this.normaliseAudience(changes.audience);
+      if (changes.audience !== undefined)
+        update.audience = this.normaliseAudience(changes.audience);
     } else if (
       changes.title !== undefined ||
       changes.body !== undefined ||
@@ -235,11 +233,9 @@ export class AnnouncementService {
     // default filter, so an administrator who archived a notice could no longer
     // find it — archiving looked identical to deleting, which is not what they
     // chose. Residents stop seeing it because the read view filters on status.
-    await announcementRepository.updateById(
-      context,
-      id,
-      { $set: { status: 'archived', archivedAt: new Date() } },
-    );
+    await announcementRepository.updateById(context, id, {
+      $set: { status: 'archived', archivedAt: new Date() },
+    });
 
     await auditService.record(context, {
       action: 'announcement.archived',
@@ -286,9 +282,10 @@ export class AnnouncementService {
     return memberships.slice(0, limit).map((membership) => membership._id.toHexString());
   }
 
-  private normaliseAudience(
-    audience: CreateAnnouncementInput['audience'],
-  ): { type: 'all' | 'categories'; categories: ResidentCategory[] } {
+  private normaliseAudience(audience: CreateAnnouncementInput['audience']): {
+    type: 'all' | 'categories';
+    categories: ResidentCategory[];
+  } {
     if (!audience || audience.type === 'all') return { type: 'all', categories: [] };
 
     const categories = audience.categories ?? [];

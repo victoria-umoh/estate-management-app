@@ -202,8 +202,9 @@ describe('publishing', () => {
     const created = await draft(context);
 
     // A suspended member is not part of the conversation.
-    expect((await announcementService.publish(context, created._id.toHexString())).notifiedCount)
-      .toBe(1);
+    expect(
+      (await announcementService.publish(context, created._id.toHexString())).notifiedCount,
+    ).toBe(1);
   });
 
   it('never crosses the estate boundary', async () => {
@@ -340,8 +341,8 @@ describe('editing', () => {
 
     await AnnouncementModel.updateOne({ _id: created._id }, { $set: { status: 'archived' } });
 
-    await expect(
-      announcementService.publish(context, created._id.toHexString()),
-    ).rejects.toThrow(/archived/i);
+    await expect(announcementService.publish(context, created._id.toHexString())).rejects.toThrow(
+      /archived/i,
+    );
   });
 });

@@ -30,9 +30,10 @@ describe('access tokens', () => {
    */
   it('expires within the configured lifetime', async () => {
     const token = await issueAccessToken(claims);
-    const payload = JSON.parse(
-      Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'),
-    ) as { iat: number; exp: number };
+    const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8')) as {
+      iat: number;
+      exp: number;
+    };
 
     const lifetimeSeconds = payload.exp - payload.iat;
 

@@ -370,7 +370,10 @@ export function safeDisplayName(filename: string): string {
   const cleaned = filename.replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/g, ' ').trim();
   // Leading dots and spaces go together and repeatedly: "../.. name" must not
   // come out still looking like a relative path.
-  const collapsed = cleaned.replace(/\s+/g, ' ').replace(/^[.\s]+/, '').slice(0, 120);
+  const collapsed = cleaned
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+/, '')
+    .slice(0, 120);
   return collapsed.length > 0 ? collapsed : 'document';
 }
 

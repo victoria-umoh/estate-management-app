@@ -20,11 +20,7 @@ export const POST = defineRoute({
   status: 200,
   handler: async (ctx, { params, body }) => {
     if (!body.approved) {
-      const pass = await exitPassService.reject(
-        ctx,
-        params.id,
-        body.reason ?? 'No reason given.',
-      );
+      const pass = await exitPassService.reject(ctx, params.id, body.reason ?? 'No reason given.');
 
       return { id: pass._id.toHexString(), status: pass.status, token: null };
     }

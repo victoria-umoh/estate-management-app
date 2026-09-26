@@ -13,25 +13,41 @@ const FEATURES = [
     icon: Users,
     title: 'Residents and households',
     body: 'One register of units, owners, tenants and the people who live with them. Residents are approved by an admin, tied to a property, and carry a digital ID with a photo. Moves and transfers are recorded, so the register still matches reality a year in.',
-    points: ['Verified residents and dependants', 'Property and vehicle ownership history', 'Digital resident ID'],
+    points: [
+      'Verified residents and dependants',
+      'Property and vehicle ownership history',
+      'Digital resident ID',
+    ],
   },
   {
     icon: ScanLine,
     title: 'Gate security and visitor passes',
     body: 'A resident creates a visitor pass on their phone; the officer scans the code at the gate and sees the host, the unit, the vehicle and whether the pass is still valid. Everything in and out is timestamped, including overstays.',
-    points: ['QR visitor and temporary passes', 'Vehicle checks and blacklisting', 'Live in-estate roll and activity log'],
+    points: [
+      'QR visitor and temporary passes',
+      'Vehicle checks and blacklisting',
+      'Live in-estate roll and activity log',
+    ],
   },
   {
     icon: AlertTriangle,
     title: 'Incidents and emergencies',
     body: 'Residents raise an emergency from the app and it reaches whoever is on duty. Incidents get a reference, an assignee and a resolution, so a dispute six months later is settled from the record rather than from memory.',
-    points: ['Emergency alerts to on-duty security', 'Incident triage with SLA tracking', 'Service requests for maintenance'],
+    points: [
+      'Emergency alerts to on-duty security',
+      'Incident triage with SLA tracking',
+      'Service requests for maintenance',
+    ],
   },
   {
     icon: ReceiptText,
     title: 'Dues and payments',
     body: 'Set the fees a unit owes, raise invoices for the whole estate at once, and take payment by card or transfer through Paystack. Every payment posts to a double-entry ledger, so the balance on a statement is one you can defend at an AGM.',
-    points: ['Recurring dues and one-off levies', 'Paystack card and transfer collection', 'Double-entry ledger and receipts'],
+    points: [
+      'Recurring dues and one-off levies',
+      'Paystack card and transfer collection',
+      'Double-entry ledger and receipts',
+    ],
   },
 ] as const;
 

@@ -52,9 +52,11 @@ export class TermiiSmsProvider implements SmsProvider {
       return { delivered: false, error: 'SMS provider unreachable.' };
     }
 
-    const body = (await response.json().catch(() => null)) as
-      | { message_id?: string; message?: string; code?: string }
-      | null;
+    const body = (await response.json().catch(() => null)) as {
+      message_id?: string;
+      message?: string;
+      code?: string;
+    } | null;
 
     // Termii answers 200 with an error message for some rejections, so the
     // status alone is not proof of acceptance.

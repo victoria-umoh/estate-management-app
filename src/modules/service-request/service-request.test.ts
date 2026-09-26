@@ -212,9 +212,9 @@ describe('reading comments', () => {
     // 404, not 403. A refusal that distinguishes "not yours" from "no such
     // ticket" tells an enumerator which ids are real, which is the whole of
     // what they need.
-    await expect(
-      serviceRequestService.comments(resident(), id, NEIGHBOUR),
-    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(serviceRequestService.comments(resident(), id, NEIGHBOUR)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 
   it('refuses a resident reading the detail of a ticket they did not raise', async () => {

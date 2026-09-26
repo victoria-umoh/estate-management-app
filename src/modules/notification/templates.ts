@@ -376,7 +376,8 @@ export const NOTIFICATION_TEMPLATES: TemplateRegistry = {
     id: 'account.duplicate-registration',
     category: 'account',
     priority: 'normal',
-    description: 'Tells an existing account holder that someone tried to register with their address.',
+    description:
+      'Tells an existing account holder that someone tried to register with their address.',
     render: ({ name, signInUrl }) => ({
       title: 'Someone tried to register with your address',
       body: 'You already have an account.',

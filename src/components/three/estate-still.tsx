@@ -45,14 +45,30 @@ export function EstateStill({ className }: { className?: string }) {
       ].map(([x = 0, y = 0]) => (
         <g key={`${x}:${y}`}>
           <rect x={x} y={y + 12} width="28" height="24" rx="2" className="fill-background" />
-          <path d={`M${x - 4} ${y + 12} L${x + 14} ${y - 1} L${x + 32} ${y + 12} Z`} className="fill-primary" />
+          <path
+            d={`M${x - 4} ${y + 12} L${x + 14} ${y - 1} L${x + 32} ${y + 12} Z`}
+            className="fill-primary"
+          />
         </g>
       ))}
 
       {/* Gatehouse and raised boom */}
-      <rect x="168" y="146" width="26" height="24" rx="3" className="fill-background stroke-border" strokeWidth="2" />
+      <rect
+        x="168"
+        y="146"
+        width="26"
+        height="24"
+        rx="3"
+        className="fill-background stroke-border"
+        strokeWidth="2"
+      />
       <circle cx="160" cy="152" r="5" className="fill-success" />
-      <path d="M140 168 L140 138" className="stroke-warning" strokeWidth="5" strokeLinecap="round" />
+      <path
+        d="M140 168 L140 138"
+        className="stroke-warning"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
       <circle cx="140" cy="170" r="4" className="fill-foreground" />
     </svg>
   );

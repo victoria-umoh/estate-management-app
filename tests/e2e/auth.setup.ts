@@ -30,8 +30,7 @@ for (const role of Object.keys(ACCOUNTS) as Role[]) {
 
     // Old enough that it could lapse mid-run, so replace it now rather than
     // halfway through a spec.
-    const savedRecently =
-      existsSync(path) && Date.now() - statSync(path).mtimeMs < REUSE_WITHIN_MS;
+    const savedRecently = existsSync(path) && Date.now() - statSync(path).mtimeMs < REUSE_WITHIN_MS;
 
     if (savedRecently) {
       const saved = await apiRequest.newContext({

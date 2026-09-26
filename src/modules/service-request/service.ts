@@ -284,10 +284,7 @@ export class ServiceRequestService {
    * Shared by the detail and the comment thread so the two cannot disagree
    * about who a ticket belongs to.
    */
-  private async assertMayRead(
-    context: RequestContext,
-    request: ServiceRequestDoc,
-  ): Promise<void> {
+  private async assertMayRead(context: RequestContext, request: ServiceRequestDoc): Promise<void> {
     if (this.isStaff(context) || can(context, PERMISSIONS.SERVICE_REQUEST_VIEW_ALL)) return;
 
     const viewer = await meService.membershipId(context).catch(() => null);

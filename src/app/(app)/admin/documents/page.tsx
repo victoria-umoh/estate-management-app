@@ -110,7 +110,11 @@ export default function DocumentsPage() {
 
       <Card>
         <CardContent className="flex flex-wrap gap-1.5 p-4 pt-4">
-          <FilterChip label="All" active={subjectType === 'all'} onClick={() => setSubjectType('all')} />
+          <FilterChip
+            label="All"
+            active={subjectType === 'all'}
+            onClick={() => setSubjectType('all')}
+          />
           {SUBJECT_TYPES.map((value) => (
             <FilterChip
               key={value}

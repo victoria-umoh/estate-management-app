@@ -44,26 +44,28 @@ export async function issueAccessToken(claims: {
   permissions: string[];
   isPlatformAdmin: boolean;
 }): Promise<string> {
-  return new SignJWT({
-    est: claims.estateId,
-    sid: claims.sessionId,
-    roles: claims.roles,
-    perms: claims.permissions,
-    ...(claims.isPlatformAdmin ? { adm: true } : {}),
-  })
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-    .setSubject(claims.userId)
-    .setIssuedAt()
-    .setIssuer(config.app.url)
-    .setAudience(config.app.url)
-    // Seconds, not milliseconds. A numeric argument here is an epoch value in
-    // SECONDS — passing milliseconds produced an `exp` in the year 58699, so
-    // JWT_ACCESS_TTL was ignored and every access token was effectively
-    // permanent. That matters more than it looks: the context resolver skips a
-    // database lookup on purpose, because these are meant to be short-lived, so
-    // a leaked token was both unbounded and unrevocable.
-    .setExpirationTime(Math.floor((Date.now() + config.auth.accessTtlMs) / 1000))
-    .sign(accessKey());
+  return (
+    new SignJWT({
+      est: claims.estateId,
+      sid: claims.sessionId,
+      roles: claims.roles,
+      perms: claims.permissions,
+      ...(claims.isPlatformAdmin ? { adm: true } : {}),
+    })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject(claims.userId)
+      .setIssuedAt()
+      .setIssuer(config.app.url)
+      .setAudience(config.app.url)
+      // Seconds, not milliseconds. A numeric argument here is an epoch value in
+      // SECONDS — passing milliseconds produced an `exp` in the year 58699, so
+      // JWT_ACCESS_TTL was ignored and every access token was effectively
+      // permanent. That matters more than it looks: the context resolver skips a
+      // database lookup on purpose, because these are meant to be short-lived, so
+      // a leaked token was both unbounded and unrevocable.
+      .setExpirationTime(Math.floor((Date.now() + config.auth.accessTtlMs) / 1000))
+      .sign(accessKey())
+  );
 }
 
 export async function verifyAccessToken(token: string): Promise<AccessTokenClaims> {

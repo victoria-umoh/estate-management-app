@@ -49,7 +49,6 @@ import { UserModel } from '@/modules/user/schema';
 import { VehicleModel } from '@/modules/vehicle';
 import { VisitorPassModel } from '@/modules/visitor/schema';
 
- 
 const MODELS: Array<Model<any>> = [
   UserModel,
   MembershipModel,

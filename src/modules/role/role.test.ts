@@ -474,9 +474,7 @@ describe('assigning roles to a membership', () => {
     const narrow = ctx([PERMISSIONS.ROLE_ASSIGN], ['estate-chairman']);
 
     await expect(
-      roleService.assignRoles(narrow, membership._id.toHexString(), [
-        custom._id.toHexString(),
-      ]),
+      roleService.assignRoles(narrow, membership._id.toHexString(), [custom._id.toHexString()]),
     ).rejects.toThrow(/permissions you do not hold/);
   });
 

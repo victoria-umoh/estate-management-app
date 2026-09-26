@@ -5,10 +5,7 @@ export {
   type SendNotificationInput,
 } from './service';
 export { notificationRepository, notificationPreferenceRepository } from './repository';
-export {
-  registerNotificationHandlers,
-  unregisterNotificationHandlers,
-} from './handlers';
+export { registerNotificationHandlers, unregisterNotificationHandlers } from './handlers';
 export { registerNotificationJobs, resetNotificationJobs } from './jobs';
 export {
   NOTIFICATION_TEMPLATES,

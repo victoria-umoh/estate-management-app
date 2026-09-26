@@ -13,10 +13,9 @@ export const POST = defineRoute({
       assigneeMembershipId: z.string().min(1).optional(),
       department: z.string().trim().min(1).max(80).optional(),
     })
-    .refine(
-      (value) => value.assigneeMembershipId !== undefined || value.department !== undefined,
-      { message: 'Provide an assignee, a department, or both.' },
-    ),
+    .refine((value) => value.assigneeMembershipId !== undefined || value.department !== undefined, {
+      message: 'Provide an assignee, a department, or both.',
+    }),
   status: 200,
   idempotent: true,
   handler: async (ctx, { params, body }) => {

@@ -155,9 +155,7 @@ async function login(email) {
 
   if (!response.ok) throw new Error(`login failed for ${email}: ${response.status}`);
 
-  const cookie = (response.headers.getSetCookie?.() ?? [])
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  const cookie = (response.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
 
   if (!cookie) throw new Error(`no session cookie set for ${email}`);
 
@@ -419,22 +417,23 @@ async function main() {
     if (!me?.data?.membershipId || !chairman) {
       report(true, 'self-assignment'.padEnd(24), 'could not resolve a role to try');
     } else {
-      const response = await fetch(
-        `${BASE}/api/v1/residents/${me.data.membershipId}/roles`,
-        {
-          method: 'PUT',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${sessions.admin.token}`,
-          },
-          body: JSON.stringify({ roleIds: [chairman.id] }),
+      const response = await fetch(`${BASE}/api/v1/residents/${me.data.membershipId}/roles`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${sessions.admin.token}`,
         },
-      );
+        body: JSON.stringify({ roleIds: [chairman.id] }),
+      });
 
       // Changing your own roles is refused even for a chairman: without that,
       // the rank ceiling is decorative — you need not define a role above your
       // own when you can take one that exists.
-      report(response.status === 403, 'self-assignment refused'.padEnd(24), String(response.status));
+      report(
+        response.status === 403,
+        'self-assignment refused'.padEnd(24),
+        String(response.status),
+      );
     }
   }
 
@@ -531,7 +530,11 @@ async function main() {
     report(
       missing.length === 0 && leaked.length === 0,
       `${role} dashboard`.padEnd(24),
-      leaked.length ? `LEAKED ${leaked.join(',')}` : missing.length ? `missing ${missing.join(',')}` : blocks.join(','),
+      leaked.length
+        ? `LEAKED ${leaked.join(',')}`
+        : missing.length
+          ? `missing ${missing.join(',')}`
+          : blocks.join(','),
     );
   }
 
@@ -559,7 +562,10 @@ async function main() {
     const forged = '0'.repeat(24);
     const created = await fetch(`${BASE}/api/v1/service-requests`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${sessions.resident.token}`, 'content-type': 'application/json' },
+      headers: {
+        authorization: `Bearer ${sessions.resident.token}`,
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({
         requesterMembershipId: forged,
         category: 'water',
@@ -578,7 +584,11 @@ async function main() {
       const detail = await seen.json();
       const owner =
         detail?.data?.requestedBy?.membershipId ?? detail?.data?.requestedByMembershipId ?? null;
-      report(owner !== forged, 'forged requester ignored', owner === forged ? 'ATTRIBUTED TO FORGED ID' : 'session owner');
+      report(
+        owner !== forged,
+        'forged requester ignored',
+        owner === forged ? 'ATTRIBUTED TO FORGED ID' : 'session owner',
+      );
     }
 
     if (id) {
@@ -626,14 +636,25 @@ async function main() {
         `${BASE}/api/v1/documents?subjectType=incident&subjectId=${incidentId}`,
         { headers: { authorization: `Bearer ${sessions.officer.token}` } },
       );
-      report(officerView.status === 200, 'officer reads incident documents', String(officerView.status));
+      report(
+        officerView.status === 200,
+        'officer reads incident documents',
+        String(officerView.status),
+      );
     }
 
-    for (const [role, want] of [['admin', 200], ['resident', 403]]) {
+    for (const [role, want] of [
+      ['admin', 200],
+      ['resident', 403],
+    ]) {
       const response = await fetch(`${BASE}/api/v1/documents`, {
         headers: { authorization: `Bearer ${sessions[role].token}` },
       });
-      report(response.status === want, `${role} on the estate register`, `${response.status} (want ${want})`);
+      report(
+        response.status === want,
+        `${role} on the estate register`,
+        `${response.status} (want ${want})`,
+      );
     }
   }
 
@@ -650,11 +671,7 @@ async function main() {
     report(response.status === 401, `${label} rejected`, String(response.status));
   }
 
-  console.log(
-    failures === 0
-      ? '\nAll checks passed.\n'
-      : `\n${failures} check(s) failed.\n`,
-  );
+  console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) failed.\n`);
 
   process.exit(failures === 0 ? 0 : 1);
 }

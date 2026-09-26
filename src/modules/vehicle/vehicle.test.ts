@@ -312,11 +312,9 @@ describe('updating a vehicle', () => {
       '12B',
     );
 
-    const { vehicle, token } = await vehicleService.update(
-      editor(),
-      registered._id.toHexString(),
-      { plateNumber: 'XYZ-789-AB' },
-    );
+    const { vehicle, token } = await vehicleService.update(editor(), registered._id.toHexString(), {
+      plateNumber: 'XYZ-789-AB',
+    });
 
     expect(vehicle.plateNumber).toBe('XYZ-789-AB');
     expect(token).toBeDefined();

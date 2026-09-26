@@ -9,8 +9,8 @@ export function ClosingCta() {
           Try it on your own estate for 30 days
         </h2>
         <p className="text-foreground/80 mt-3 max-w-prose text-pretty">
-          The trial runs the full Professional plan — dues, incidents and reporting included — for up
-          to 100 units. No card, and nothing to uninstall if you stop.
+          The trial runs the full Professional plan — dues, incidents and reporting included — for
+          up to 100 units. No card, and nothing to uninstall if you stop.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Button asChild size="lg">

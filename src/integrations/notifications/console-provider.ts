@@ -1,12 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@/core/logging';
-import type {
-  DeliveryResult,
-  EmailMessage,
-  EmailProvider,
-  SmsMessage,
-  SmsProvider,
-} from './types';
+import type { DeliveryResult, EmailMessage, EmailProvider, SmsMessage, SmsProvider } from './types';
 
 const log = createLogger('notifications:console');
 

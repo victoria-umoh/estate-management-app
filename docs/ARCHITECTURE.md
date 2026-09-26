@@ -179,14 +179,14 @@ not open is a safety problem, not a billing one.
 Every integration is an interface with at least two adapters, so serverless and
 self-hosted are a configuration difference rather than a fork:
 
-| Seam | Adapters |
-|---|---|
-| Cache | memory · ioredis · Upstash REST |
-| Queue | inline · BullMQ |
-| Storage | local · S3 (also R2, MinIO) |
-| Payments | mock · Paystack |
-| Identity | mock · Dojah |
-| Notifications | console · Resend · Termii |
+| Seam          | Adapters                        |
+| ------------- | ------------------------------- |
+| Cache         | memory · ioredis · Upstash REST |
+| Queue         | inline · BullMQ                 |
+| Storage       | local · S3 (also R2, MinIO)     |
+| Payments      | mock · Paystack                 |
+| Identity      | mock · Dojah                    |
+| Notifications | console · Resend · Termii       |
 
 The mock adapters are not stubs. The mock payment provider signs webhooks with
 the same HMAC scheme as Paystack, so the signature-verification path is genuinely

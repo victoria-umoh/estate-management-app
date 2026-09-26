@@ -63,9 +63,11 @@ export class ResendEmailProvider implements EmailProvider {
       return { delivered: false, error: 'Email provider unreachable.' };
     }
 
-    const body = (await response.json().catch(() => null)) as
-      | { id?: string; message?: string; name?: string }
-      | null;
+    const body = (await response.json().catch(() => null)) as {
+      id?: string;
+      message?: string;
+      name?: string;
+    } | null;
 
     if (!response.ok) {
       // The recipient address is logged, the message body never is: it may

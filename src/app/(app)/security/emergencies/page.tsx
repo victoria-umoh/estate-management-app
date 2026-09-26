@@ -159,7 +159,7 @@ export default function EmergenciesPage() {
                   <EmergencyCard
                     key={emergency.id}
                     emergency={emergency}
-                          busy={busyId === emergency.id}
+                    busy={busyId === emergency.id}
                     onAct={act}
                     compact
                   />
@@ -265,9 +265,7 @@ function EmergencyCard({
           <Button
             size="sm"
             disabled={busy}
-            onClick={() =>
-              void onAct(emergency, { action: 'acknowledge' })
-            }
+            onClick={() => void onAct(emergency, { action: 'acknowledge' })}
           >
             Acknowledge
           </Button>

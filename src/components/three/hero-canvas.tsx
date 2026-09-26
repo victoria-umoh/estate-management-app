@@ -34,7 +34,10 @@ function hasWebGl(): boolean {
  * a render error that would otherwise take the whole page's error boundary with
  * it. Catching here costs a still image instead of a broken landing page.
  */
-class SceneBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
+class SceneBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { failed: boolean }
+> {
   override state = { failed: false };
 
   static getDerivedStateFromError() {

@@ -50,7 +50,10 @@ export const FEATURE_LABELS: Record<FeatureCode, { label: string; detail: string
   devices: { label: 'Gate hardware', detail: 'RFID readers, number-plate cameras and boom gates.' },
   sso: { label: 'Single sign-on', detail: 'SAML or OIDC against your existing directory.' },
   'white-label': { label: 'White label', detail: 'Your estate’s name and branding throughout.' },
-  'audit-export': { label: 'Audit log export', detail: 'The full audit trail, exported on demand.' },
+  'audit-export': {
+    label: 'Audit log export',
+    detail: 'The full audit trail, exported on demand.',
+  },
 };
 
 export const LIMIT_ORDER = ['units', 'gates', 'adminSeats', 'smsCreditsPerMonth'] as const;

@@ -27,10 +27,10 @@ export function Hero() {
           </h1>
 
           <p className="text-muted-foreground mt-5 max-w-prose text-base text-pretty sm:text-lg">
-            PrimeEstate keeps one verified register of residents, households and vehicles, checks every
-            visitor at the gate against it, records incidents as they happen, and bills dues with a
-            ledger that reconciles. Security officers work it on a tablet; residents use their
-            phones.
+            PrimeEstate keeps one verified register of residents, households and vehicles, checks
+            every visitor at the gate against it, records incidents as they happen, and bills dues
+            with a ledger that reconciles. Security officers work it on a tablet; residents use
+            their phones.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">

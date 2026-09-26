@@ -2,7 +2,12 @@ import { Types } from 'mongoose';
 import { BaseRepository, allocateReference, withTransaction } from '@/core/db';
 import type { PaginatedResult } from '@/core/db';
 import { events } from '@/core/events';
-import { AuthorizationError, ConflictError, InvalidStateTransitionError, NotFoundError } from '@/core/errors';
+import {
+  AuthorizationError,
+  ConflictError,
+  InvalidStateTransitionError,
+  NotFoundError,
+} from '@/core/errors';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan, can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';

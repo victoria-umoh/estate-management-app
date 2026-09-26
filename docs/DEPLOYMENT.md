@@ -8,12 +8,12 @@ adapter for each, so the choice is configuration rather than a fork.
 
 ## 1. What it needs
 
-| | Requirement | Why |
-|---|---|---|
-| Node | 22+ | The code uses `process.loadEnvFile` and modern ESM. |
-| MongoDB | **7+, replica set** | Not optional. The app uses multi-document transactions — an invoice and its ledger entries commit together. A standalone `mongod` rejects them. Atlas gives you a replica set by default; a local one needs `--replSet` and `rs.initiate()`. |
-| Redis | 7+ (optional) | Rate limits, the gate credential cache, and BullMQ. Without it, set `CACHE_DRIVER=memory` — but see the warning below. |
-| S3-compatible storage | optional | Photos and incident media. Works against S3, Cloudflare R2 and MinIO. |
+|                       | Requirement         | Why                                                                                                                                                                                                                                          |
+| --------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node                  | 22+                 | The code uses `process.loadEnvFile` and modern ESM.                                                                                                                                                                                          |
+| MongoDB               | **7+, replica set** | Not optional. The app uses multi-document transactions — an invoice and its ledger entries commit together. A standalone `mongod` rejects them. Atlas gives you a replica set by default; a local one needs `--replSet` and `rs.initiate()`. |
+| Redis                 | 7+ (optional)       | Rate limits, the gate credential cache, and BullMQ. Without it, set `CACHE_DRIVER=memory` — but see the warning below.                                                                                                                       |
+| S3-compatible storage | optional            | Photos and incident media. Works against S3, Cloudflare R2 and MinIO.                                                                                                                                                                        |
 
 **`CACHE_DRIVER=memory` is for a single process only.** Rate limits and
 idempotency keys held in one process's memory are not shared, so two instances
@@ -117,13 +117,13 @@ pnpm start
 With `CACHE_DRIVER=ioredis`, `QUEUE_DRIVER=bullmq` and a worker process
 alongside the web process. Run the jobs on a scheduler:
 
-| Job | Suggested cadence | What it does |
-|---|---|---|
-| `pnpm job:overstay` | every 5–15 min | Flags visitors still inside past their departure. |
-| `pnpm job:billing` | daily | Raises invoices for fees falling due. Safe to run daily — the fee period is part of the invoice's unique index, so a repeat collides rather than double-charging. |
-| `pnpm job:overdue` | daily | Flags arrears. |
-| `pnpm job:dunning` | daily | Moves lapsed estates through grace to suspension. |
-| `pnpm job:sla` | hourly | Escalates service requests past their SLA. |
+| Job                 | Suggested cadence | What it does                                                                                                                                                      |
+| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm job:overstay` | every 5–15 min    | Flags visitors still inside past their departure.                                                                                                                 |
+| `pnpm job:billing`  | daily             | Raises invoices for fees falling due. Safe to run daily — the fee period is part of the invoice's unique index, so a repeat collides rather than double-charging. |
+| `pnpm job:overdue`  | daily             | Flags arrears.                                                                                                                                                    |
+| `pnpm job:dunning`  | daily             | Moves lapsed estates through grace to suspension.                                                                                                                 |
+| `pnpm job:sla`      | hourly            | Escalates service requests past their SLA.                                                                                                                        |
 
 ### Running it under PM2
 

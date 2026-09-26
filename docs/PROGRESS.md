@@ -30,20 +30,20 @@ more honest than a phase checklist, which says what was planned rather than what
 is there. It went 52 → 25 → **5 of 126**, and those five are the withdrawn
 `user.*` strings below. Every permission meant to gate something now does.
 
-Match the *constant*, not the string. Code says `PERMISSIONS.DOCUMENT_VIEW`, so
+Match the _constant_, not the string. Code says `PERMISSIONS.DOCUMENT_VIEW`, so
 grepping for `'document.view'` reports almost every permission as unenforced.
 An earlier version of this command did exactly that and read 118 when the true
 figure was 5.
 
 **Not every one deserves an implementation.** `user.*` was withdrawn rather than
 built: a user is global and a membership is per-estate, so an estate
-administrator suspending a *user* would lock that person out of another estate.
+administrator suspending a _user_ would lock that person out of another estate.
 Some declared permissions deserve a decision instead.
 
 **Phase 14 is complete and verified.** Documents (storage-backed, type verified
 against magic bytes, EXIF stripped, downloads forced to octet-stream), tenant
 lifecycle (approve/renew with lease history preserved across renewals), resident
-suspend/delete (revoking the resident's pass *and* their vehicles' credentials,
+suspend/delete (revoking the resident's pass _and_ their vehicles' credentials,
 because a car is another way through the same gate), the four soft deletes,
 vehicle and gate update, service-request comments, self-serve estate signup with
 a trial and a verification link that actually bites, and the invoice, payment
@@ -94,10 +94,11 @@ officer has set, not always "in"; the account page links the phone/NIN checks.
 **Next action:** the open decisions below. Nothing else is queued.
 
 **Open decisions (need the owner):**
+
 - Should residents issue temporary passes? No resident role holds
   `temporaryPass.create`, and there is no "my temporary passes" list endpoint,
   so the form on `/my/visitors` currently shows "issued by the estate office".
-- Should phone/NIN checks happen *before* approval? Today they need a signed-in
+- Should phone/NIN checks happen _before_ approval? Today they need a signed-in
   session and pending members cannot sign in, so they happen after
   (`/register/identity`, linked from the account page but not the approval email).
 - `/api/v1/gate/verify` is dead — `/gate/scan` does the same check and logs it.
@@ -107,6 +108,7 @@ officer has set, not always "in"; the account page links the phone/NIN checks.
   the GitHub run page (likely an account billing lock).
 
 **Standing caveats:**
+
 - `pnpm build` and `pnpm dev` share `.next` and corrupt each other. Use
   `pnpm clean` between them.
 - The e2e suite passes on a fresh dev server and decays on a reused one. If a

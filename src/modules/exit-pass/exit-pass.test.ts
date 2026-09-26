@@ -234,9 +234,9 @@ describe('the approval gate', () => {
   it('requires exitPass.approve', async () => {
     const { pass } = await exitPassService.create(resident(), passInput());
 
-    await expect(
-      exitPassService.approve(officer(), pass._id.toHexString()),
-    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(exitPassService.approve(officer(), pass._id.toHexString())).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 
   it('lets an approver refuse, with a reason on the record', async () => {

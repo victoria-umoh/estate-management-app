@@ -359,7 +359,15 @@ export class PropertyService {
     context: RequestContext,
     filters: Parameters<typeof propertyOccupancyRepository.paginateTenancies>[1] = {},
     pagination: { page?: number; limit?: number } = {},
-  ): Promise<PaginatedResult<PropertyOccupancyDoc & { unitNumber: string | null; street: string | null; occupantName: string | null }>> {
+  ): Promise<
+    PaginatedResult<
+      PropertyOccupancyDoc & {
+        unitNumber: string | null;
+        street: string | null;
+        occupantName: string | null;
+      }
+    >
+  > {
     const result = await this.tenancies(context, filters, pagination);
 
     const propertyIds = [...new Set(result.items.map((t) => t.propertyId.toHexString()))];

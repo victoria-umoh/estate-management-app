@@ -637,9 +637,9 @@ describe('deleting a property', () => {
 
     await propertyService.remove(admin, property._id.toHexString(), 'Demolished');
 
-    await expect(
-      propertyRepository.findByIdOrFail(admin, property._id),
-    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(propertyRepository.findByIdOrFail(admin, property._id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
 
     const retained = await propertyRepository.findById(admin, property._id, {
       includeDeleted: true,

@@ -31,11 +31,11 @@ exists, which is enough to enumerate another estate's residents by id.
 
 Three separate bugs traced to one mistake: letting the client say who it is.
 
-| Bug | Consequence |
-|---|---|
-| `GET /invoices` gated on `invoice.view`, which residents hold | Any resident could read every household's billing history |
-| `POST /emergencies/:id` took `responderMembershipId` from the body | A caller could attribute emergency attendance to someone else |
-| Two screens read `membershipId` from `localStorage` | Nothing ever wrote it; the ID card and emergency actions silently did nothing |
+| Bug                                                                | Consequence                                                                   |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `GET /invoices` gated on `invoice.view`, which residents hold      | Any resident could read every household's billing history                     |
+| `POST /emergencies/:id` took `responderMembershipId` from the body | A caller could attribute emergency attendance to someone else                 |
+| Two screens read `membershipId` from `localStorage`                | Nothing ever wrote it; the ID card and emergency actions silently did nothing |
 
 `MeService` now answers "who is calling?" once, from the session. Every
 resident-facing route goes through it, and none accepts a membership id from the
@@ -59,7 +59,7 @@ two jobs and needs splitting.** `invoice.view` (your own) and `invoice.viewAll`
 - The default serializer returns NIN masked. The full value requires
   `resident.viewNin`, is served by a dedicated endpoint, and **every read writes
   an audit entry**. It never appears in list responses, logs or error messages.
-- A NIN *search* is an identity lookup and carries the same permission and the
+- A NIN _search_ is an identity lookup and carries the same permission and the
   same audit entry. Someone who cannot reveal a NIN must not be able to confirm
   one exists by searching for it.
 

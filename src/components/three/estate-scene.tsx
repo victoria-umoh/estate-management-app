@@ -90,7 +90,10 @@ export default function EstateScene() {
     const materials: Array<{ token: keyof Palette; material: MeshStandardMaterial }> = [];
 
     const material = (token: keyof Palette, palette: Palette, emissive = false) => {
-      const created = new MeshStandardMaterial({ color: new Color(palette[token]), roughness: 0.8 });
+      const created = new MeshStandardMaterial({
+        color: new Color(palette[token]),
+        roughness: 0.8,
+      });
       if (emissive) {
         created.emissive = new Color(palette[token]);
         created.emissiveIntensity = 0.6;

@@ -28,6 +28,5 @@ export const POST = defineRoute({
   body: SignupDto,
   rateLimit: { key: 'ip', limit: 3, window: '1h', bucket: 'signup' },
   status: 202,
-  handler: async (ctx, { body }) =>
-    signupService.start(body, ctx.ip ? { ip: ctx.ip } : {}),
+  handler: async (ctx, { body }) => signupService.start(body, ctx.ip ? { ip: ctx.ip } : {}),
 });
