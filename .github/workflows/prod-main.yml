@@ -90,6 +90,8 @@ jobs:
     needs: check
     runs-on: estate-management-app-prod
     environment: production
+    permissions:
+      contents: read
 
     env:
       APP_DIR: ${{ vars.APP_DIR }}
@@ -115,14 +117,19 @@ jobs:
         with:
           node-version: "22"
 
-      # Fast-forward only: if someone edited tracked files on the server, stop
+            # Fast-forward only: if someone edited tracked files on the server, stop
       # and say so rather than overwrite them. Untracked files — the env files,
-      # logs/ — are untouched either way.
+      # logs/ — are untouched either way. The repository is private, so the
+      # fetch borrows this run's token for that one command; nothing is stored.
       - name: Update the code
         working-directory: ${{ env.APP_DIR }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git fetch --prune origin main
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch --prune origin main
           git merge --ff-only "$GITHUB_SHA"
+
 
       - name: Install dependencies
         working-directory: ${{ env.APP_DIR }}
