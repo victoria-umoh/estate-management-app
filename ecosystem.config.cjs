@@ -68,6 +68,11 @@ module.exports = {
       name: 'estate-web',
       script: 'scripts/next-with-env.mjs',
       args: 'start',
+      // Listen on every interface, not just localhost, so a reverse proxy or
+      // another machine can reach it. Beats HOST in the env files, which only
+      // fill gaps. Firewall the port if nothing but the proxy should see it.
+      env: { ...env, HOST: '0.0.0.0' },
+      env_production: { ...envProduction, HOST: '0.0.0.0' },
       interpreter: 'node',
       // Fork, not cluster: the wrapper spawns Next as a child, which PM2's
       // cluster mode cannot share a port with. Scale by running more hosts
