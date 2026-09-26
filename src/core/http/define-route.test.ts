@@ -78,6 +78,43 @@ describe('authentication', () => {
     expect((await defineRoute({ handler: async () => ({}) })(request())).status).toBe(401);
   });
 
+  // A stale session cookie must not block the login meant to replace it.
+  it('treats an invalid token on a public route as anonymous', async () => {
+    setContextResolver(async () => {
+      throw new AuthenticationError('Invalid authentication token.');
+    });
+    let seen: RequestContext | undefined;
+
+    const response = await defineRoute({
+      auth: false,
+      handler: async (ctx) => {
+        seen = ctx;
+        return {};
+      },
+    })(request());
+
+    expect(response.status).toBe(200);
+    expect(seen?.userId).toBe('anonymous');
+  });
+
+  it('still rejects an invalid token on a protected route', async () => {
+    setContextResolver(async () => {
+      throw new AuthenticationError('Invalid authentication token.');
+    });
+
+    expect((await defineRoute({ handler: async () => ({}) })(request())).status).toBe(401);
+  });
+
+  it('does not swallow non-authentication failures on a public route', async () => {
+    setContextResolver(async () => {
+      throw new InternalError('resolver crashed');
+    });
+
+    expect((await defineRoute({ auth: false, handler: async () => ({}) })(request())).status).toBe(
+      500,
+    );
+  });
+
   it('gives public routes an anonymous context with no estate or permissions', async () => {
     setContextResolver(async () => null);
     let seen: RequestContext | undefined;
