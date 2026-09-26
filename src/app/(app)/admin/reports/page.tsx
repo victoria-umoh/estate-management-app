@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { api, ApiRequestError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { ReportSchedules } from './schedules';
 
 /**
  * Reports.
@@ -32,6 +33,9 @@ import { cn } from '@/lib/utils';
  * No chart library is loaded. `recharts` is installed but would land in the
  * shared chunk and the build enforces a first-load budget; a trend table reads
  * fine on a phone and costs nothing.
+ *
+ * Schedules sit under the report itself and draw only for someone holding
+ * `report.schedule`; see `schedules.tsx`.
  */
 interface ReportSummaryEntry {
   type: string;
@@ -412,6 +416,8 @@ export default function ReportsPage() {
               ))}
             </>
           )}
+
+          <ReportSchedules catalogue={catalogue} />
         </>
       )}
     </div>

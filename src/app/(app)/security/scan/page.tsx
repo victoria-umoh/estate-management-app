@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Car, Hash, QrCode, RotateCcw } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { ArrowDownLeft, ArrowUpRight, Ban, Car, Hash, QrCode, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +23,13 @@ import { cn } from '@/lib/utils';
  *  - Controls are at the bottom, within thumb reach on a held tablet.
  *  - Every scan leaves a record whatever the outcome, so the officer never has
  *    to remember to log a refusal.
+ *  - "Deny entry" covers what a scan cannot see — no pass at all, a plate that
+ *    was only looked up, or a valid pass the officer will not honour. It is
+ *    never offered after a refused scan, which is already logged, so the log
+ *    does not count one refusal twice. Its dialog loads only when opened.
  */
+const DenyEntryDialog = dynamic(() => import('./deny-entry-dialog'), { ssr: false });
+
 type Mode = 'qr' | 'code' | 'plate';
 type Direction = 'in' | 'out';
 
@@ -40,6 +47,9 @@ export default function GateScanPage() {
   const [mode, setMode] = useState<Mode>('qr');
 
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null);
+  // Scans and codes write their own movement; a plate lookup writes nothing.
+  const [outcomeLogged, setOutcomeLogged] = useState(false);
+  const [denying, setDenying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [manualValue, setManualValue] = useState('');
 
@@ -83,6 +93,7 @@ export default function GateScanPage() {
             });
 
         setOutcome(result);
+        setOutcomeLogged(true);
         setManualValue('');
 
         // Sound and vibration, because the officer is usually looking at the
@@ -141,6 +152,7 @@ export default function GateScanPage() {
               reason: 'unknown-credential',
             },
       );
+      setOutcomeLogged(false);
       setManualValue('');
     } catch {
       toast.error('Lookup failed.');
@@ -150,6 +162,11 @@ export default function GateScanPage() {
   }, [manualValue]);
 
   const activeGate = gates.find((gate) => gate.id === gateId);
+
+  // The API records denials as entries only, so the action follows the
+  // direction switch rather than offering something it cannot log.
+  const canDeny =
+    direction === 'in' && Boolean(gateId) && (!outcome || outcome.admitted || !outcomeLogged);
 
   return (
     <div className="mx-auto max-w-lg space-y-4 pb-24">
@@ -208,6 +225,24 @@ export default function GateScanPage() {
             <RotateCcw aria-hidden />
             Next
           </Button>
+          {canDeny ? (
+            <Button
+              size="lg"
+              block
+              variant="ghost"
+              className="text-danger"
+              onClick={() => setDenying(true)}
+            >
+              <Ban aria-hidden />
+              {outcome.admitted ? 'Refuse anyway' : 'Record refusal'}
+            </Button>
+          ) : (
+            !outcome.admitted && (
+              <p className="text-muted-foreground text-center text-xs">
+                This refusal is already in the gate log.
+              </p>
+            )
+          )}
         </div>
       ) : (
         <>
@@ -240,7 +275,9 @@ export default function GateScanPage() {
             ))}
           </div>
 
-          {mode === 'qr' && <QrScanner onScan={(token) => void submit({ token })} paused={busy} />}
+          {mode === 'qr' && (
+            <QrScanner onScan={(token) => void submit({ token })} paused={busy || denying} />
+          )}
 
           {mode !== 'qr' && (
             <div className="space-y-3">
@@ -278,7 +315,33 @@ export default function GateScanPage() {
               </Button>
             </div>
           )}
+
+          {canDeny && (
+            <Button
+              size="lg"
+              block
+              variant="ghost"
+              className="text-danger"
+              onClick={() => setDenying(true)}
+            >
+              <Ban aria-hidden />
+              Deny entry — no pass
+            </Button>
+          )}
         </>
+      )}
+
+      {denying && activeGate && (
+        <DenyEntryDialog
+          gateId={activeGate.id}
+          gateLabel={activeGate.code}
+          subject={outcome?.credential?.display.primaryLabel ?? ''}
+          onClose={() => setDenying(false)}
+          onRecorded={() => {
+            setDenying(false);
+            setOutcome(null);
+          }}
+        />
       )}
     </div>
   );
