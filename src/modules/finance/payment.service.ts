@@ -391,6 +391,18 @@ export class PaymentService {
 
     const invoice = await invoiceRepository.findByIdOrFail(context, input.invoiceId);
 
+    // Only a charge that was actually raised can be paid. Crediting a draft or a
+    // cancelled invoice would post cash against a receivable the ledger never
+    // recorded, and the books would stop balancing.
+    if (!['issued', 'partially-paid', 'overdue'].includes(invoice.status)) {
+      throw new ConflictError(`A ${invoice.status} invoice cannot take a payment.`);
+    }
+    // The payer is whoever was billed. Taking a different household from the
+    // request would mark their dues paid with someone else's money.
+    if (!invoice.membershipId.equals(input.membershipId)) {
+      throw new UnprocessableError('That invoice was not billed to this resident.');
+    }
+
     if (input.amount <= 0) {
       throw new UnprocessableError('A payment must be for more than zero.');
     }

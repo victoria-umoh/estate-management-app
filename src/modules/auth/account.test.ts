@@ -12,6 +12,7 @@ import mongoose from 'mongoose';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDatabase } from '@tests/helpers/database';
 import { MemoryCacheAdapter, setCache } from '@/integrations/cache';
+import { EstateModel } from '@/modules/estate';
 import {
   ConsoleEmailProvider,
   ConsoleSmsProvider,
@@ -56,6 +57,15 @@ beforeEach(async () => {
   await UserModel.syncIndexes();
   await MembershipModel.syncIndexes();
   await SessionModel.syncIndexes();
+  // Registration refuses an estate that does not exist.
+  await EstateModel.create({
+    _id: ESTATE,
+    name: 'Palm Grove',
+    slug: `palm-${ESTATE}`,
+    address: { line1: '1 Palm Ave', city: 'Lekki', state: 'Lagos', country: 'Nigeria' },
+    contact: { email: 'office@example.com', phone: '+2348000000000' },
+    status: 'active',
+  });
   await AccountTokenModel.syncIndexes();
 });
 
@@ -431,6 +441,22 @@ describe('invitations', () => {
         phone: '+2348011112222',
       }),
     ).rejects.toThrow(/invalid, has expired, or has already been used/i);
+  });
+
+  // A typo in the form must not cost the invitee their only link.
+  it('survives a rejected weak password, so the invitee can fix it', async () => {
+    await accountService.inviteResident(inviter(), {
+      email: 'chidi@example.com',
+      category: 'tenant',
+    });
+    const token = linkToken('/accept-invitation');
+
+    await expect(
+      accountService.acceptInvitation(token, { token, ...accept, password: 'weak' }),
+    ).rejects.toThrow();
+
+    const result = await accountService.acceptInvitation(token, { token, ...accept });
+    expect(result.userId).toBeTruthy();
   });
 
   it('refuses an expired invitation', async () => {

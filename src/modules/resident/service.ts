@@ -160,6 +160,12 @@ export class ResidentService {
       property,
       approvedAt: membership.approvedAt ?? null,
       movedInAt: membership.movedInAt ?? null,
+
+      // Only for whoever can change them. A neighbour sharing the unit can open
+      // this profile, and has no business learning who holds which office.
+      ...(can(context, PERMISSIONS.ROLE_ASSIGN)
+        ? { roleIds: membership.roleIds.map((id) => id.toHexString()) }
+        : {}),
     };
   }
 

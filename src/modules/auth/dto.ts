@@ -39,7 +39,7 @@ export const RegisterDto = z.object({
   phone,
   password,
   /** Estate being joined. Determines which administrators review the request. */
-  estateId: z.string().min(1),
+  estateId: z.string().regex(/^[a-f\d]{24}$/i, 'Unknown estate.'),
   category: z.enum([
     'homeowner',
     'landlord',
@@ -52,7 +52,10 @@ export const RegisterDto = z.object({
     'contractor',
     'other',
   ]),
-  propertyId: z.string().optional(),
+  propertyId: z
+    .string()
+    .regex(/^[a-f\d]{24}$/i, 'Unknown property.')
+    .optional(),
   emergencyContact: z
     .object({
       name: z.string().trim().min(2).max(80),

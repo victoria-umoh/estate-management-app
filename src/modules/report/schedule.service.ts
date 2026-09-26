@@ -156,7 +156,13 @@ export class ReportScheduleService {
   ): Promise<ReportScheduleDoc> {
     assertCan(context, PERMISSIONS.REPORT_SCHEDULE);
 
-    const schedule = await reportScheduleRepository.updateById(context, id, { $set: { active } });
+    // Resuming reschedules from now. A schedule paused for a month still holds
+    // the run it missed, and would otherwise fire on the very next sweep — a
+    // report nobody asked for, covering a period nobody chose.
+    const existing = await reportScheduleRepository.findByIdOrFail(context, id);
+    const schedule = await reportScheduleRepository.updateById(context, id, {
+      $set: active ? { active, nextRunAt: nextRunAfter(existing, new Date()) } : { active },
+    });
 
     await auditService.record(context, {
       action: active ? 'report.schedule_resumed' : 'report.schedule_paused',

@@ -376,6 +376,39 @@ describe('payments', () => {
     ).rejects.toThrow(/more than the amount outstanding/);
   });
 
+  // A draft was never charged, so paying it would credit a receivable the
+  // ledger never raised.
+  it('refuses a payment against a draft invoice', async () => {
+    const draft = await invoiceService.create(admin(), {
+      membershipId: MEMBERSHIP,
+      lines: [{ description: 'Monthly estate dues', unitAmount: DUES }],
+      dueAt: new Date(Date.now() + 14 * 86_400_000),
+    });
+
+    await expect(
+      paymentService.recordManual(admin(), {
+        invoiceId: draft._id.toHexString(),
+        membershipId: MEMBERSHIP,
+        amount: DUES,
+        note: 'Cash',
+      }),
+    ).rejects.toThrow(/cannot take a payment/);
+    expect(await ledgerService.balance(admin(), 'cash')).toBe(0);
+  });
+
+  it('refuses a payment attributed to a household other than the one billed', async () => {
+    const invoice = await issuedInvoice();
+
+    await expect(
+      paymentService.recordManual(admin(), {
+        invoiceId: invoice._id.toHexString(),
+        membershipId: new mongoose.Types.ObjectId().toHexString(),
+        amount: DUES,
+        note: 'Cash',
+      }),
+    ).rejects.toThrow(/not billed to this resident/);
+  });
+
   // Recording cash credits an account on nothing but a person's word.
   it('requires payment.verify to record a manual payment', async () => {
     const invoice = await issuedInvoice();

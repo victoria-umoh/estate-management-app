@@ -14,7 +14,9 @@ import { createLogger } from '@/core/logging';
 import { systemContext } from '@/core/tenancy';
 import { events } from '@/core/events';
 import { getIdentityProvider } from '@/integrations/identity';
+import { estateRepository } from '@/modules/estate';
 import { membershipRepository } from '@/modules/membership/repository';
+import { propertyRepository } from '@/modules/property';
 import type { MembershipDoc } from '@/modules/membership/schema';
 import { roleService } from '@/modules/role';
 import { auditService } from '@/modules/audit';
@@ -80,13 +82,24 @@ export class AuthService {
    * cannot tell that from success, which is the point. The existing account
    * holder is emailed instead.
    */
-  async register(
-    input: RegisterInput,
-  ): Promise<{ userId: string; membershipId: string } | null> {
+  async register(input: RegisterInput): Promise<{ userId: string; membershipId: string } | null> {
     assertPasswordStrength(input.password, {
       email: input.email,
       name: `${input.firstName} ${input.lastName}`,
     });
+
+    // The estate and property come from a shared link, so they are only as
+    // trustworthy as whoever edited the URL. A membership pointing at an estate
+    // that does not exist would sit in no administrator's queue, forever.
+    const [estate, property] = await Promise.all([
+      estateRepository.findById(input.estateId),
+      input.propertyId
+        ? propertyRepository.findById(systemContext(input.estateId), input.propertyId)
+        : null,
+    ]);
+
+    if (!estate) throw new NotFoundError('Estate');
+    if (input.propertyId && !property) throw new NotFoundError('Property');
 
     // Checked up front to give a clear message. The unique indexes on the blind
     // indexes are the actual guarantee — this check races, that one does not.

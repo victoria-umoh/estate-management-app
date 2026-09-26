@@ -41,6 +41,24 @@ export class AccountTokenRepository extends PlatformRepository<AccountTokenDoc> 
   }
 
   /**
+   * Read a live token without spending it.
+   *
+   * For validating a request against what the token grants before redeeming
+   * it. Never a substitute for `consume`: two callers can both peek the same
+   * token, and only `consume` decides which of them wins.
+   */
+  async peek(purpose: AccountTokenPurpose, tokenHash: string): Promise<AccountTokenDoc | null> {
+    return AccountTokenModel.findOne({
+      purpose,
+      tokenHash,
+      consumedAt: null,
+      expiresAt: { $gt: new Date() },
+    })
+      .lean<AccountTokenDoc>()
+      .exec();
+  }
+
+  /**
    * Retire every outstanding token of a purpose for one account.
    *
    * Called when a new one is issued and when one is redeemed: a user who asked

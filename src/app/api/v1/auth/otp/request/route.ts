@@ -1,5 +1,5 @@
 import { defineRoute } from '@/core/http';
-import { issueOtp, RequestOtpDto } from '@/modules/auth';
+import { accountService, RequestOtpDto } from '@/modules/auth';
 import { createLogger } from '@/core/logging';
 import { config } from '@/core/config';
 
@@ -14,8 +14,8 @@ export const POST = defineRoute({
   status: 200,
   body: RequestOtpDto,
   rateLimit: { key: 'user', limit: 3, window: '15m', bucket: 'auth:otp-request' },
-  handler: async (_ctx, { body }) => {
-    const code = await issueOtp('phone-verification', body.phone);
+  handler: async (ctx, { body }) => {
+    const code = await accountService.requestPhoneVerification(ctx, body.phone);
 
     // Phase 10 replaces this with the SMS provider. Until then the code is
     // logged in development only, and never in production.

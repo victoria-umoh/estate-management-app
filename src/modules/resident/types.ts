@@ -54,6 +54,8 @@ export interface ResidentDetail extends ResidentListItem {
 
   approvedAt: Date | null;
   movedInAt: Date | null;
+  /** Present only when the viewer may assign roles. */
+  roleIds?: string[];
 }
 
 /**

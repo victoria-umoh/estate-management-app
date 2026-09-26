@@ -11,9 +11,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDatabase } from '@tests/helpers/database';
 import { blindIndex } from '@/core/crypto';
 import { MemoryCacheAdapter, setCache } from '@/integrations/cache';
+import { EstateModel } from '@/modules/estate';
 import { MembershipModel } from '@/modules/membership/schema';
 import { UserModel } from '@/modules/user/schema';
 import { userRepository } from '@/modules/user/repository';
+import type { RequestContext } from '@/core/tenancy';
+import { accountService } from './account.service';
 import { authService } from './service';
 import { sessionRepository } from './session.repository';
 import { SessionModel } from './session.schema';
@@ -31,6 +34,23 @@ beforeEach(async () => {
   await UserModel.syncIndexes();
   await MembershipModel.syncIndexes();
   await SessionModel.syncIndexes();
+  // Registration refuses an estate that does not exist.
+  await EstateModel.create({
+    _id: ESTATE_A,
+    name: 'Palm Grove',
+    slug: `palm-${ESTATE_A}`,
+    address: { line1: '1 Palm Ave', city: 'Lekki', state: 'Lagos', country: 'Nigeria' },
+    contact: { email: 'office@example.com', phone: '+2348000000000' },
+    status: 'active',
+  });
+  await EstateModel.create({
+    _id: ESTATE_B,
+    name: 'Palm Grove',
+    slug: `palm-${ESTATE_B}`,
+    address: { line1: '1 Palm Ave', city: 'Lekki', state: 'Lagos', country: 'Nigeria' },
+    contact: { email: 'office@example.com', phone: '+2348000000000' },
+    status: 'active',
+  });
 });
 
 afterEach(() => setCache(undefined));
@@ -541,5 +561,59 @@ describe('NIN verification', () => {
 
     const found = await userRepository.findByNin('12345678911');
     expect(found?._id.toHexString()).toBe(userId);
+  });
+});
+
+describe('registration target', () => {
+  // The estate id arrives in a shared link, so it is only as good as the URL.
+  it('refuses an estate that does not exist', async () => {
+    await expect(
+      authService.register({
+        ...validRegistration,
+        estateId: new mongoose.Types.ObjectId().toHexString(),
+      }),
+    ).rejects.toThrow(/estate not found/i);
+    expect(await UserModel.countDocuments()).toBe(0);
+  });
+
+  it('refuses a property outside the estate', async () => {
+    await expect(
+      authService.register({
+        ...validRegistration,
+        propertyId: new mongoose.Types.ObjectId().toHexString(),
+      }),
+    ).rejects.toThrow(/property not found/i);
+  });
+});
+
+describe('phone verification', () => {
+  function contextFor(userId: string): RequestContext {
+    return {
+      userId,
+      estateId: ESTATE_A,
+      roles: ['resident'],
+      permissions: new Set(),
+      correlationId: 'corr',
+      isPlatformAdmin: false,
+    };
+  }
+
+  it('records the phone as verified once the code checks out', async () => {
+    const { userId } = await registerAndActivate();
+    const context = contextFor(userId);
+
+    const code = await accountService.requestPhoneVerification(context, validRegistration.phone);
+    await accountService.confirmPhoneVerification(context, validRegistration.phone, code);
+
+    expect((await UserModel.findById(userId).lean())?.phoneVerifiedAt).toBeInstanceOf(Date);
+  });
+
+  // Otherwise a signed-in user could text strangers on the estate's SMS bill.
+  it('refuses to send a code to a number that is not on the account', async () => {
+    const { userId } = await registerAndActivate();
+
+    await expect(
+      accountService.requestPhoneVerification(contextFor(userId), '+2348099999999'),
+    ).rejects.toThrow(/not the phone number on your account/i);
   });
 });

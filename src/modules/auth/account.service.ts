@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import { config } from '@/core/config';
 import { blindIndex, maskEmail } from '@/core/crypto';
 import { withTransaction } from '@/core/db';
-import { AuthenticationError, ConflictError, ErrorCode } from '@/core/errors';
+import { AuthenticationError, ConflictError, ErrorCode, ValidationError } from '@/core/errors';
 import { enforceRateLimit } from '@/core/http/rate-limit';
 import { createLogger } from '@/core/logging';
 import { PERMISSIONS, assertCan } from '@/core/rbac';
@@ -18,6 +18,7 @@ import type { UserDoc } from '@/modules/user/schema';
 import { accountTokenRepository } from './account-token.repository';
 import type { AccountTokenDoc, AccountTokenPurpose } from './account-token.schema';
 import type { AcceptInvitationInput, InviteResidentInput } from './dto';
+import { issueOtp, verifyOtp } from './otp';
 import { assertPasswordStrength, hashPassword } from './password';
 import { sessionRepository } from './session.repository';
 import { generateOpaqueToken, hashOpaqueToken } from './tokens';
@@ -386,34 +387,35 @@ export class AccountService {
    * reason registration is: a user with no membership cannot sign in anywhere,
    * and a membership with no user is a dangling row in the estate directory.
    *
-   * The token is consumed BEFORE the transaction. That ordering is deliberate:
-   * if the account creation then fails, the invitation is spent and must be
-   * reissued — annoying, and much better than the alternative, where a token
-   * that fails mid-transaction is left redeemable and two people race it.
+   * The invitee's own mistakes — a weak password, a phone number already in
+   * use — are checked against a peeked token first, so fixing a typo does not
+   * cost them the invitation.
+   *
+   * The token is then consumed BEFORE the transaction. That ordering is
+   * deliberate: if the account creation then fails, the invitation is spent and
+   * must be reissued — annoying, and much better than the alternative, where a
+   * token that fails mid-transaction is left redeemable and two people race it.
    */
   async acceptInvitation(
     token: string,
     input: AcceptInvitationInput,
   ): Promise<{ userId: string; membershipId: string }> {
-    const record = await accountTokenRepository.consume('invitation', hashOpaqueToken(token));
-
-    if (!record?.invitation || !record.estateId) {
-      throw new AuthenticationError(
+    const invalid = () =>
+      new AuthenticationError(
         'That invitation is invalid, has expired, or has already been used.',
         ErrorCode.TOKEN_INVALID,
       );
-    }
 
-    const invitation = record.invitation;
-    const estateId = record.estateId.toHexString();
+    const peeked = await accountTokenRepository.peek('invitation', hashOpaqueToken(token));
+    if (!peeked?.invitation || !peeked.estateId) throw invalid();
 
     assertPasswordStrength(input.password, {
-      email: invitation.email,
+      email: peeked.invitation.email,
       name: `${input.firstName} ${input.lastName}`,
     });
 
     const duplicate = await userRepository.findDuplicate({
-      email: invitation.email,
+      email: peeked.invitation.email,
       phone: input.phone,
     });
 
@@ -425,6 +427,12 @@ export class AccountService {
         ErrorCode.DUPLICATE_IDENTITY,
       );
     }
+
+    const record = await accountTokenRepository.consume('invitation', hashOpaqueToken(token));
+    if (!record?.invitation || !record.estateId) throw invalid();
+
+    const invitation = record.invitation;
+    const estateId = record.estateId.toHexString();
 
     const passwordHash = await hashPassword(input.password);
 
@@ -528,6 +536,51 @@ export class AccountService {
       { key: 'user', limit, window, bucket },
       { userId: blindIndex(email, 'email'), route: bucket },
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phone verification
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Send a verification code to the caller's own phone.
+   *
+   * The number must be the one on the account. Accepting any number would let
+   * a signed-in user spend the estate's SMS budget texting strangers, and would
+   * "verify" a phone the account does not actually hold.
+   */
+  async requestPhoneVerification(context: RequestContext, phone: string): Promise<string> {
+    await this.assertOwnPhone(context, phone);
+    return issueOtp('phone-verification', phone);
+  }
+
+  /** Check the code and record the phone as verified on the account. */
+  async confirmPhoneVerification(
+    context: RequestContext,
+    phone: string,
+    code: string,
+  ): Promise<void> {
+    const user = await this.assertOwnPhone(context, phone);
+    await verifyOtp('phone-verification', phone, code);
+
+    await userRepository.updateById(user._id, { $set: { phoneVerifiedAt: new Date() } });
+    await auditService.record(context, {
+      action: 'user.phone-verified',
+      resource: 'user',
+      resourceId: user._id.toHexString(),
+    });
+  }
+
+  private async assertOwnPhone(context: RequestContext, phone: string): Promise<UserDoc> {
+    const user = await userRepository.findById(context.userId);
+
+    if (!user || user.phoneIndex !== blindIndex(phone, 'phone')) {
+      throw new ValidationError('That is not the phone number on your account.', [
+        { field: 'body.phone', message: 'Use the phone number on your account.' },
+      ]);
+    }
+
+    return user;
   }
 }
 
