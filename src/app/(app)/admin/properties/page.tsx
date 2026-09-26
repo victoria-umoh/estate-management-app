@@ -1,15 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
-import { api } from '@/lib/api/client';
+import { ApiRequestError, api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 /**
@@ -112,6 +123,7 @@ export default function PropertiesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Properties</h1>
+        <AddPropertyDialog />
       </div>
 
       <Card>
@@ -211,6 +223,208 @@ export default function PropertiesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Register a new unit.
+ *
+ * Every unit starts vacant — the API sets that, not the form — so there is no
+ * status field here. Occupants are assigned from the property's own page, which
+ * is where this sends you once the unit exists, because that is almost always
+ * the next thing someone registering a unit does.
+ */
+function AddPropertyDialog() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const [unitNumber, setUnitNumber] = useState('');
+  const [block, setBlock] = useState('');
+  const [street, setStreet] = useState('');
+  const [type, setType] = useState<(typeof TYPES)[number]>('detached');
+  const [bedrooms, setBedrooms] = useState('');
+  const [maxOccupants, setMaxOccupants] = useState('');
+  const [notes, setNotes] = useState('');
+
+  function reset() {
+    setUnitNumber('');
+    setBlock('');
+    setStreet('');
+    setType('detached');
+    setBedrooms('');
+    setMaxOccupants('');
+    setNotes('');
+    setError(null);
+    setFieldErrors({});
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setFieldErrors({});
+
+    try {
+      const created = await api.post<{ id: string; unitNumber: string }>('/properties', {
+        unitNumber: unitNumber.trim(),
+        street: street.trim(),
+        type,
+        // Optional fields are left out rather than sent empty: the schema
+        // rejects an empty block and a bedroom count of "".
+        ...(block.trim() ? { block: block.trim() } : {}),
+        ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
+        ...(maxOccupants ? { maxOccupants: Number(maxOccupants) } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      });
+      setOpen(false);
+      reset();
+      router.push(`/admin/properties/${created.id}`);
+    } catch (caught) {
+      if (caught instanceof ApiRequestError) {
+        setError(caught.message);
+        setFieldErrors(
+          Object.fromEntries(
+            (caught.details ?? [])
+              .filter((detail) => detail.field)
+              .map((detail) => [detail.field!.replace(/^body\./, ''), detail.message]),
+          ),
+        );
+      } else {
+        setError('The property was not registered. Try again.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>
+          <Plus aria-hidden />
+          Add property
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add a property</DialogTitle>
+          <DialogDescription>
+            The unit is registered as vacant. Owners and tenants are assigned from its page.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Unit number"
+              required
+              maxLength={20}
+              value={unitNumber}
+              onChange={(event) => setUnitNumber(event.target.value)}
+              placeholder="12B"
+              autoComplete="off"
+              error={fieldErrors.unitNumber}
+            />
+            <Input
+              label="Block"
+              maxLength={40}
+              value={block}
+              onChange={(event) => setBlock(event.target.value)}
+              placeholder="Optional"
+              autoComplete="off"
+              error={fieldErrors.block}
+            />
+          </div>
+
+          <Input
+            label="Street"
+            required
+            minLength={2}
+            maxLength={120}
+            value={street}
+            onChange={(event) => setStreet(event.target.value)}
+            autoComplete="off"
+            error={fieldErrors.street}
+          />
+
+          <label className="block space-y-1.5">
+            <span className="text-foreground block text-sm font-medium">Type</span>
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value as (typeof TYPES)[number])}
+              className="border-input bg-background focus-visible:ring-ring focus-visible:border-ring h-10 w-full rounded-md border px-3 text-sm capitalize focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {option.replace(/-/g, ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Bedrooms"
+              type="number"
+              min={0}
+              max={50}
+              value={bedrooms}
+              onChange={(event) => setBedrooms(event.target.value)}
+              error={fieldErrors.bedrooms}
+            />
+            <Input
+              label="Occupant cap"
+              hint="Exceeding it is flagged, not refused."
+              type="number"
+              min={1}
+              max={100}
+              value={maxOccupants}
+              onChange={(event) => setMaxOccupants(event.target.value)}
+              error={fieldErrors.maxOccupants}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-foreground block text-sm font-medium" htmlFor="property-notes">
+              Notes
+            </label>
+            <textarea
+              id="property-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={2}
+              maxLength={2000}
+              className="border-input bg-background focus-visible:ring-ring focus-visible:border-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            />
+          </div>
+
+          {error && <Alert tone="danger">{error}</Alert>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={busy}
+              disabled={unitNumber.trim().length === 0 || street.trim().length < 2}
+            >
+              Add property
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

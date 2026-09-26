@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { api } from '@/lib/api/client';
+import { AccountActions } from './account-actions';
+import { ResidentDependants } from './resident-dependants';
+import { ResidentRoles } from './resident-roles';
 
 /**
  * One resident.
@@ -21,6 +24,10 @@ import { api } from '@/lib/api/client';
  * is a separate permission and is written to the audit trail on every single
  * read. The warning sits above the button rather than in a toast afterwards:
  * an administrator should be able to decide not to look.
+ *
+ * Roles, dependants and the suspend/delete actions are their own components,
+ * each loading and failing on its own: a resident whose dependants cannot be
+ * listed is still a resident who can be suspended.
  */
 interface Resident {
   membershipId: string;
@@ -58,6 +65,9 @@ interface Resident {
 
   approvedAt: string | null;
   movedInAt: string | null;
+
+  /** Not returned by the detail endpoint today; used to seed the role editor if it ever is. */
+  roleIds?: string[];
 }
 
 interface HouseholdMember {
@@ -364,6 +374,11 @@ export default function ResidentDetailPage() {
         </CardContent>
       </Card>
 
+      <ResidentDependants
+        guardianMembershipId={resident.membershipId}
+        fullName={resident.fullName}
+      />
+
       {resident.emergencyContact && (
         <Card>
           <CardHeader>
@@ -380,6 +395,19 @@ export default function ResidentDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <ResidentRoles
+        membershipId={resident.membershipId}
+        fullName={resident.fullName}
+        {...(resident.roleIds ? { knownRoleIds: resident.roleIds } : {})}
+      />
+
+      <AccountActions
+        membershipId={resident.membershipId}
+        fullName={resident.fullName}
+        status={resident.status}
+        onChanged={load}
+      />
     </div>
   );
 }

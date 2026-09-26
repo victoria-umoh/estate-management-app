@@ -11,6 +11,9 @@ import { SkeletonTable } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { ChangeRequestQueue } from './change-request-queue';
+import { InviteResidentDialog } from './invite-resident-dialog';
+import { RegistrationLinkButton } from './registration-link-button';
 
 /**
  * The resident directory.
@@ -22,6 +25,8 @@ import { cn } from '@/lib/utils';
  *
  * Never renders a NIN, not even masked: a directory is read over shoulders and
  * screenshotted, and the value has its own audited endpoint on the detail page.
+ * Change requests are the one exception, and only as the API masks them — a
+ * reviewer has to see that a NIN is changing to judge the request at all.
  */
 interface Resident {
   membershipId: string;
@@ -124,6 +129,10 @@ export default function ResidentsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Residents</h1>
+        <div className="flex flex-wrap justify-end gap-2">
+          <RegistrationLinkButton />
+          <InviteResidentDialog />
+        </div>
       </div>
 
       {queueCount > 0 && status !== 'awaiting-approval' && (
@@ -148,6 +157,9 @@ export default function ResidentsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* An approved name or unit change shows in the directory, so it reloads. */}
+      <ChangeRequestQueue onReviewed={() => void load()} />
 
       <Card>
         <CardHeader>

@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { ErrorState, PermissionDeniedState } from '@/components/ui/states';
 import { SkeletonText } from '@/components/ui/skeleton';
 import { api, ApiRequestError } from '@/lib/api/client';
+import { GatesCard } from './_components/gates-card';
+import { TemplatesCard } from './_components/templates-card';
 
 /**
  * Estate settings.
@@ -21,6 +23,10 @@ import { api, ApiRequestError } from '@/lib/api/client';
  *
  * Only changed fields are sent, because the endpoint takes a partial body and a
  * full one would overwrite a value someone else edited between load and save.
+ *
+ * Gates and notification templates sit below as their own sections, each
+ * loading independently and each absent for a viewer who cannot read it, so a
+ * missing permission for one does not take the estate settings with it.
  */
 interface EstateSettings {
   visitorOverstayGraceMinutes: number;
@@ -297,6 +303,9 @@ export default function EstateSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <GatesCard />
+      <TemplatesCard />
     </div>
   );
 }

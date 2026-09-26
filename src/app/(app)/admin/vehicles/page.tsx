@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, Car, ShieldCheck } from 'lucide-react';
+import { Ban, Car, Plus, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,12 +16,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { ApiRequestError, api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { ResidentPicker, type ResidentOption } from '../properties/_components/resident-picker';
+import { VEHICLE_TYPES, type VehicleType } from './_components/vehicle-fields';
 
 /**
  * The vehicle register.
@@ -28,6 +34,10 @@ import { cn } from '@/lib/utils';
  * — a reason, then a typed plate — and a blacklisted row is marked by border,
  * fill, icon and text rather than by colour alone, because the officer reading
  * this may be doing so on a sunlit tablet.
+ *
+ * Registration lands a car as pending; it only opens a gate once verified,
+ * which happens on the vehicle's own page because that is where the one-time
+ * credential can be shown and handed over.
  */
 type VehicleStatus = 'pending' | 'active' | 'suspended' | 'blacklisted' | 'expired' | 'removed';
 
@@ -90,9 +100,12 @@ export default function VehiclesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Vehicles</h1>
-        <Button variant="outline" onClick={() => void load()}>
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => void load()}>
+            Refresh
+          </Button>
+          <RegisterVehicleDialog />
+        </div>
       </div>
 
       <Card>
@@ -159,9 +172,12 @@ export default function VehiclesPage() {
                     <Ban className="text-danger size-4 shrink-0" aria-hidden />
                   )}
 
-                  <span className="font-mono text-sm font-semibold tracking-wide tabular-nums">
+                  <Link
+                    href={`/admin/vehicles/${vehicle.id}`}
+                    className="text-primary font-mono text-sm font-semibold tracking-wide tabular-nums underline-offset-4 hover:underline"
+                  >
                     {vehicle.plateNumber}
-                  </span>
+                  </Link>
 
                   <span className="text-muted-foreground min-w-0 flex-1 basis-40 truncate text-sm">
                     {vehicle.description}
@@ -184,6 +200,226 @@ export default function VehiclesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Put a resident's car on the register.
+ *
+ * The owner is picked by name, never typed as an id. Only the fields the API
+ * requires are marked required; the optional ones are omitted rather than sent
+ * empty, since the schema treats an empty string as a value and not an absence.
+ */
+function RegisterVehicleDialog() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [owner, setOwner] = useState<ResidentOption | null>(null);
+  const [plateNumber, setPlateNumber] = useState('');
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
+  const [colour, setColour] = useState('');
+  const [year, setYear] = useState('');
+  const [type, setType] = useState<VehicleType>('car');
+  const [driverName, setDriverName] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
+  const [insuranceProvider, setInsuranceProvider] = useState('');
+  const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
+
+  function reset() {
+    setOwner(null);
+    setPlateNumber('');
+    setMake('');
+    setModel('');
+    setColour('');
+    setYear('');
+    setType('car');
+    setDriverName('');
+    setDriverPhone('');
+    setInsuranceProvider('');
+    setInsuranceExpiryDate('');
+    setError(null);
+  }
+
+  const ready =
+    owner !== null &&
+    plateNumber.trim().length >= 3 &&
+    make.trim().length > 0 &&
+    model.trim().length > 0 &&
+    colour.trim().length >= 2;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!owner) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await api.post<{ id: string }>('/vehicles', {
+        ownerMembershipId: owner.membershipId,
+        plateNumber: plateNumber.trim(),
+        make: make.trim(),
+        model: model.trim(),
+        colour: colour.trim(),
+        type,
+        ...(year ? { year: Number(year) } : {}),
+        ...(driverName.trim() ? { driverName: driverName.trim() } : {}),
+        ...(driverPhone.trim() ? { driverPhone: driverPhone.trim() } : {}),
+        ...(insuranceProvider.trim() ? { insuranceProvider: insuranceProvider.trim() } : {}),
+        ...(insuranceExpiryDate ? { insuranceExpiryDate } : {}),
+      });
+      setOpen(false);
+      reset();
+      router.push(`/admin/vehicles/${created.id}`);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiRequestError ? caught.message : 'The vehicle was not registered.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>
+          <Plus aria-hidden />
+          Register vehicle
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Register a vehicle</DialogTitle>
+          <DialogDescription>
+            It is added as pending and will not open a gate until it is verified.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+          <ResidentPicker label="Owner" value={owner} onChange={setOwner} />
+
+          <Input
+            label="Plate number"
+            required
+            minLength={3}
+            maxLength={20}
+            value={plateNumber}
+            onChange={(event) => setPlateNumber(event.target.value)}
+            placeholder="ABC-123-XY"
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono uppercase"
+          />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Input
+              label="Make"
+              required
+              maxLength={40}
+              value={make}
+              onChange={(event) => setMake(event.target.value)}
+              placeholder="Toyota"
+            />
+            <Input
+              label="Model"
+              required
+              maxLength={40}
+              value={model}
+              onChange={(event) => setModel(event.target.value)}
+              placeholder="Corolla"
+            />
+            <Input
+              label="Colour"
+              required
+              minLength={2}
+              maxLength={30}
+              value={colour}
+              onChange={(event) => setColour(event.target.value)}
+              placeholder="Silver"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-foreground block text-sm font-medium">Type</span>
+              <select
+                value={type}
+                onChange={(event) => setType(event.target.value as VehicleType)}
+                className="border-input bg-background focus-visible:ring-ring focus-visible:border-ring h-10 w-full rounded-md border px-3 text-sm capitalize focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {VEHICLE_TYPES.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Input
+              label="Year"
+              type="number"
+              min={1900}
+              max={2100}
+              value={year}
+              onChange={(event) => setYear(event.target.value)}
+            />
+          </div>
+
+          <details className="group rounded-md border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Driver and insurance (optional)
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Driver name"
+                maxLength={80}
+                value={driverName}
+                onChange={(event) => setDriverName(event.target.value)}
+              />
+              <Input
+                label="Driver phone"
+                type="tel"
+                maxLength={20}
+                value={driverPhone}
+                onChange={(event) => setDriverPhone(event.target.value)}
+              />
+              <Input
+                label="Insurer"
+                maxLength={80}
+                value={insuranceProvider}
+                onChange={(event) => setInsuranceProvider(event.target.value)}
+              />
+              <Input
+                label="Insurance expires"
+                type="date"
+                value={insuranceExpiryDate}
+                onChange={(event) => setInsuranceExpiryDate(event.target.value)}
+              />
+            </div>
+          </details>
+
+          {error && <Alert tone="danger">{error}</Alert>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={busy} disabled={!ready}>
+              Register
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

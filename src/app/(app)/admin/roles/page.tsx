@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Lock, Plus, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lock, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -36,7 +38,12 @@ import { cn } from '@/lib/utils';
  * System roles are shown read-only with the reason stated, rather than as a
  * greyed-out button: they are seeded into every estate and stripping a
  * permission from one would, for example, lock the gates against the officers
- * who staff them.
+ * who staff them. The service refuses edits and deletes on them outright, so
+ * the edit and delete controls are only rendered for custom roles.
+ *
+ * Neither an edit nor a delete signs anybody out. Permissions travel in the
+ * access token, so the people holding a role see the change when their token
+ * next refreshes — within fifteen minutes — and both dialogs say so.
  */
 interface Role {
   id: string;
@@ -60,6 +67,7 @@ export default function RolesPage() {
   const [failed, setFailed] = useState(false);
   const [denied, setDenied] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Role | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -107,7 +115,13 @@ export default function RolesPage() {
       ) : (
         <div className="space-y-3">
           {data.roles.map((role) => (
-            <RoleCard key={role.id} role={role} groups={groups} />
+            <RoleCard
+              key={role.id}
+              role={role}
+              groups={groups}
+              onEdit={() => setEditing(role)}
+              onDeleted={() => void load()}
+            />
           ))}
         </div>
       )}
@@ -124,12 +138,50 @@ export default function RolesPage() {
           }}
         />
       )}
+
+      {data !== null && editing !== null && (
+        <EditRoleDialog
+          key={editing.id}
+          role={editing}
+          groups={groups}
+          totalPermissions={total}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function RoleCard({ role, groups }: { role: Role; groups: Record<string, string[]> }) {
+function RoleCard({
+  role,
+  groups,
+  onEdit,
+  onDeleted,
+}: {
+  role: Role;
+  groups: Record<string, string[]>;
+  onEdit: () => void;
+  onDeleted: () => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function remove() {
+    setDeleteError(null);
+    try {
+      await api.delete(`/roles/${role.id}`);
+      toast.success(`${role.name} deleted`);
+      onDeleted();
+    } catch (caught) {
+      setDeleteError(
+        caught instanceof ApiRequestError ? caught.message : 'Could not delete the role.',
+      );
+    }
+  }
   const held = useMemo(() => new Set(role.permissions), [role.permissions]);
   const unrestricted = held.has(WILDCARD);
 
@@ -157,9 +209,34 @@ function RoleCard({ role, groups }: { role: Role; groups: Record<string, string[
         {role.description && (
           <p className="text-muted-foreground text-sm text-pretty">{role.description}</p>
         )}
+
+        {!role.isSystem && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil aria-hidden />
+              Edit
+            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button variant="ghost" size="sm" className="text-danger">
+                  <Trash2 aria-hidden />
+                  Delete
+                </Button>
+              }
+              title={`Delete ${role.name}?`}
+              description="Everyone holding this role loses the permissions it grants when their session next refreshes, within fifteen minutes. The role stays in the audit trail but cannot be assigned again, and its code cannot be reused."
+              confirmLabel="Delete role"
+              tone="danger"
+              confirmPhrase={role.code}
+              onConfirm={remove}
+            />
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3">
+        {deleteError && <Alert tone="danger">{deleteError}</Alert>}
+
         {role.isSystem && (
           <Alert tone="info" title="Read-only">
             System roles are seeded into every estate and shared by all of them. They cannot be
@@ -242,11 +319,8 @@ function CreateRoleDialog({
   const [description, setDescription] = useState('');
   const [rank, setRank] = useState('10');
   const [selected, setSelected] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const chosen = useMemo(() => new Set(selected), [selected]);
 
   function reset() {
     setCode('');
@@ -254,24 +328,7 @@ function CreateRoleDialog({
     setDescription('');
     setRank('10');
     setSelected([]);
-    setExpanded(null);
     setError(null);
-  }
-
-  function toggle(permission: string) {
-    setSelected((current) =>
-      current.includes(permission)
-        ? current.filter((value) => value !== permission)
-        : [...current, permission],
-    );
-  }
-
-  function toggleGroup(permissions: string[], all: boolean) {
-    setSelected((current) =>
-      all
-        ? current.filter((value) => !permissions.includes(value))
-        : [...new Set([...current, ...permissions])],
-    );
   }
 
   async function submit() {
@@ -351,76 +408,12 @@ function CreateRoleDialog({
             onChange={(event) => setRank(event.target.value)}
           />
 
-          <div>
-            <p className="text-foreground text-sm font-medium">
-              Permissions{' '}
-              <span className="text-muted-foreground tabular-nums">
-                ({selected.length}/{totalPermissions})
-              </span>
-            </p>
-
-            <div className="divide-border mt-1.5 divide-y rounded-lg border">
-              {Object.entries(groups).map(([resource, permissions]) => {
-                const count = permissions.filter((permission) => chosen.has(permission)).length;
-                const all = count === permissions.length;
-                const isOpen = expanded === resource;
-
-                return (
-                  <div key={resource}>
-                    <div className="flex items-center gap-2 p-2">
-                      <button
-                        type="button"
-                        onClick={() => setExpanded(isOpen ? null : resource)}
-                        aria-expanded={isOpen}
-                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
-                      >
-                        {isOpen ? (
-                          <ChevronDown className="size-4 shrink-0" aria-hidden />
-                        ) : (
-                          <ChevronRight className="size-4 shrink-0" aria-hidden />
-                        )}
-                        <span className="truncate font-medium">{resource}</span>
-                        <span
-                          className={cn(
-                            'text-xs tabular-nums',
-                            count > 0 ? 'text-primary' : 'text-muted-foreground',
-                          )}
-                        >
-                          {count}/{permissions.length}
-                        </span>
-                      </button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleGroup(permissions, all)}
-                      >
-                        {all ? 'None' : 'All'}
-                      </Button>
-                    </div>
-
-                    {isOpen && (
-                      <ul className="space-y-1 px-2 pb-2 pl-7">
-                        {permissions.map((permission) => (
-                          <li key={permission}>
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                className="accent-primary size-4 shrink-0"
-                                checked={chosen.has(permission)}
-                                onChange={() => toggle(permission)}
-                              />
-                              <span className="font-mono text-xs break-all">{permission}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <PermissionPicker
+            groups={groups}
+            totalPermissions={totalPermissions}
+            selected={selected}
+            onChange={setSelected}
+          />
 
           {error && <Alert tone="danger">{error}</Alert>}
         </div>
@@ -441,5 +434,225 @@ function CreateRoleDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Amend a custom role's name, description and permissions.
+ *
+ * Code and rank are not offered: the API does not accept either, because the
+ * code is what tokens and audit entries name the role by, and the rank is what
+ * the escalation checks are measured against. Mounted fresh per role (keyed by
+ * the caller), so it always opens on that role's current values.
+ */
+function EditRoleDialog({
+  role,
+  groups,
+  totalPermissions,
+  onClose,
+  onSaved,
+}: {
+  role: Role;
+  groups: Record<string, string[]>;
+  totalPermissions: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(role.name);
+  const [description, setDescription] = useState(role.description ?? '');
+  const [selected, setSelected] = useState<string[]>(role.permissions);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const removed = role.permissions.filter((permission) => !selected.includes(permission)).length;
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await api.patch(`/roles/${role.id}`, {
+        name: name.trim(),
+        description: description.trim(),
+        permissions: selected,
+      });
+      toast.success(`${name.trim()} updated`);
+      onSaved();
+    } catch (caught) {
+      // The service names the rule that refused it: a rank at or above the
+      // editor's own, or a permission the editor does not hold themselves.
+      setError(
+        caught instanceof ApiRequestError ? caught.message : 'Could not save the role. Try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit {role.name}</DialogTitle>
+          <DialogDescription>
+            Everyone holding this role gets the new permission set when their session next
+            refreshes, within fifteen minutes. The change is recorded in the audit trail.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <Input
+            label="Name"
+            required
+            minLength={2}
+            maxLength={60}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <Input
+            label="Description"
+            maxLength={200}
+            placeholder="What this role is for"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+
+          <p className="text-muted-foreground text-xs">
+            Code <span className="font-mono">{role.code}</span> and rank{' '}
+            <span className="tabular-nums">{role.rank}</span> are fixed once a role is created.
+          </p>
+
+          <PermissionPicker
+            groups={groups}
+            totalPermissions={totalPermissions}
+            selected={selected}
+            onChange={setSelected}
+          />
+
+          {removed > 0 && (
+            <Alert tone="warning">
+              {removed === 1 ? '1 permission' : `${removed} permissions`} will be taken away from
+              everyone holding this role.
+            </Alert>
+          )}
+
+          {error && <Alert tone="danger">{error}</Alert>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void submit()}
+            loading={submitting}
+            disabled={name.trim().length < 2}
+          >
+            Save changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The grouped permission checklist, shared by the create and edit dialogs. */
+function PermissionPicker({
+  groups,
+  totalPermissions,
+  selected,
+  onChange,
+}: {
+  groups: Record<string, string[]>;
+  totalPermissions: number;
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const chosen = useMemo(() => new Set(selected), [selected]);
+
+  function toggle(permission: string) {
+    onChange(
+      selected.includes(permission)
+        ? selected.filter((value) => value !== permission)
+        : [...selected, permission],
+    );
+  }
+
+  function toggleGroup(permissions: string[], all: boolean) {
+    onChange(
+      all
+        ? selected.filter((value) => !permissions.includes(value))
+        : [...new Set([...selected, ...permissions])],
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-foreground text-sm font-medium">
+        Permissions{' '}
+        <span className="text-muted-foreground tabular-nums">
+          ({selected.length}/{totalPermissions})
+        </span>
+      </p>
+
+      <div className="divide-border mt-1.5 divide-y rounded-lg border">
+        {Object.entries(groups).map(([resource, permissions]) => {
+          const count = permissions.filter((permission) => chosen.has(permission)).length;
+          const all = count === permissions.length;
+          const isOpen = expanded === resource;
+
+          return (
+            <div key={resource}>
+              <div className="flex items-center gap-2 p-2">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(isOpen ? null : resource)}
+                  aria-expanded={isOpen}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
+                >
+                  {isOpen ? (
+                    <ChevronDown className="size-4 shrink-0" aria-hidden />
+                  ) : (
+                    <ChevronRight className="size-4 shrink-0" aria-hidden />
+                  )}
+                  <span className="truncate font-medium">{resource}</span>
+                  <span
+                    className={cn(
+                      'text-xs tabular-nums',
+                      count > 0 ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    {count}/{permissions.length}
+                  </span>
+                </button>
+
+                <Button variant="ghost" size="sm" onClick={() => toggleGroup(permissions, all)}>
+                  {all ? 'None' : 'All'}
+                </Button>
+              </div>
+
+              {isOpen && (
+                <ul className="space-y-1 px-2 pb-2 pl-7">
+                  {permissions.map((permission) => (
+                    <li key={permission}>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="accent-primary size-4 shrink-0"
+                          checked={chosen.has(permission)}
+                          onChange={() => toggle(permission)}
+                        />
+                        <span className="font-mono text-xs break-all">{permission}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/states';
-import { api } from '@/lib/api/client';
+import { ApiRequestError, api } from '@/lib/api/client';
+import { ResidentPicker, type ResidentOption } from '../_components/resident-picker';
 
 /**
  * One property.
@@ -25,6 +27,10 @@ import { api } from '@/lib/api/client';
  * resolved from the resident directory filtered to this property. A history
  * entry for someone who has since left will not resolve, and is shown by its id
  * rather than being hidden — an unnamed record still belongs in the history.
+ *
+ * Assigning and removing refetch everything rather than patching state: an
+ * assignment closes the previous holder's record and moves the occupancy
+ * status, and neither of those is in the response.
  */
 interface Occupant {
   id: string;
@@ -72,9 +78,12 @@ const OCCUPANCY_TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger
   unavailable: 'danger',
 };
 
+type OccupantRole = 'owner' | 'landlord' | 'tenant';
+
 export default function PropertyDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const router = useRouter();
 
   const [property, setProperty] = useState<Property | null>(null);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -269,6 +278,8 @@ export default function PropertyDetailPage() {
         </CardContent>
       </Card>
 
+      <AssignOccupantCard property={property} names={names} onAssigned={load} />
+
       <Card>
         <CardHeader>
           <CardTitle>Transfer ownership</CardTitle>
@@ -315,7 +326,254 @@ export default function PropertyDetailPage() {
           />
         </CardContent>
       </Card>
+
+      <RemovePropertyCard property={property} onRemoved={() => router.push('/admin/properties')} />
     </div>
+  );
+}
+
+const ROLE_HINT: Record<OccupantRole, string> = {
+  owner:
+    'Holds title. To hand the unit to a buyer with the full sale record, use the transfer below.',
+  landlord: 'Lets the unit out on the owner’s behalf.',
+  tenant: 'Occupies the unit under a lease.',
+};
+
+/**
+ * Put someone on the unit as owner, landlord or tenant.
+ *
+ * Each role has one current holder. Assigning a role that is already held
+ * closes the existing holder's record as "transferred" — it is not added
+ * alongside — so the confirm step names who is being replaced rather than
+ * leaving that to be discovered in the history afterwards.
+ */
+function AssignOccupantCard({
+  property,
+  names,
+  onAssigned,
+}: {
+  property: Property;
+  names: Map<string, string>;
+  onAssigned: () => Promise<void>;
+}) {
+  const [role, setRole] = useState<OccupantRole>('tenant');
+  const [person, setPerson] = useState<ResidentOption | null>(null);
+  const [leaseStartDate, setLeaseStartDate] = useState('');
+  const [leaseEndDate, setLeaseEndDate] = useState('');
+  const [occupantCount, setOccupantCount] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const current = property.occupants.find((occupant) => occupant.role === role) ?? null;
+  const currentName = current ? (names.get(current.membershipId) ?? 'the current holder') : null;
+  const leaseInvalid = Boolean(
+    leaseStartDate && leaseEndDate && new Date(leaseEndDate) <= new Date(leaseStartDate),
+  );
+
+  async function assign() {
+    if (!person) return;
+    setError(null);
+    try {
+      await api.post(`/properties/${property.id}`, {
+        membershipId: person.membershipId,
+        role,
+        ...(role === 'tenant' && leaseStartDate ? { leaseStartDate } : {}),
+        ...(role === 'tenant' && leaseEndDate ? { leaseEndDate } : {}),
+        ...(occupantCount ? { occupantCount: Number(occupantCount) } : {}),
+      });
+      setPerson(null);
+      setLeaseStartDate('');
+      setLeaseEndDate('');
+      setOccupantCount('');
+      await onAssigned();
+    } catch (caught) {
+      setError(
+        caught instanceof ApiRequestError ? caught.message : 'The assignment did not go through.',
+      );
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserPlus className="size-4" aria-hidden />
+          Assign an occupant
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <fieldset className="space-y-1.5">
+          <legend className="text-foreground text-sm font-medium">Role</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {(['owner', 'landlord', 'tenant'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={role === option}
+                onClick={() => setRole(option)}
+                className={
+                  role === option
+                    ? 'border-primary bg-primary-muted text-primary rounded-full border px-3 py-1 text-xs font-medium capitalize'
+                    : 'border-input text-muted-foreground hover:bg-accent rounded-full border px-3 py-1 text-xs capitalize'
+                }
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <p className="text-muted-foreground text-xs">{ROLE_HINT[role]}</p>
+        </fieldset>
+
+        <ResidentPicker
+          label="Resident"
+          hint="Search active residents by name or code."
+          value={person}
+          onChange={setPerson}
+        />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {role === 'tenant' && (
+            <>
+              <Input
+                label="Lease starts"
+                type="date"
+                value={leaseStartDate}
+                onChange={(event) => setLeaseStartDate(event.target.value)}
+              />
+              <Input
+                label="Lease ends"
+                type="date"
+                value={leaseEndDate}
+                onChange={(event) => setLeaseEndDate(event.target.value)}
+                error={leaseInvalid ? 'Must be after the start date.' : undefined}
+              />
+            </>
+          )}
+          <Input
+            label="People living there"
+            type="number"
+            min={1}
+            max={100}
+            value={occupantCount}
+            onChange={(event) => setOccupantCount(event.target.value)}
+            hint={
+              property.maxOccupants !== null
+                ? `Cap is ${property.maxOccupants}; going over is flagged, not refused.`
+                : undefined
+            }
+          />
+        </div>
+
+        {current && (
+          <Alert tone="warning" title={`This unit already has a ${role}`}>
+            {currentName}&rsquo;s {role} record will be closed as transferred when you assign
+            someone new.
+          </Alert>
+        )}
+
+        {error && <Alert tone="danger">{error}</Alert>}
+
+        <ConfirmDialog
+          trigger={
+            <Button disabled={!person || leaseInvalid}>
+              <UserPlus aria-hidden />
+              Assign {role}
+            </Button>
+          }
+          title={`Assign ${person?.fullName ?? 'this resident'} as ${role}?`}
+          description={
+            current
+              ? `${currentName} stops being the ${role} of ${property.unitNumber} and ${person?.fullName ?? 'the new resident'} takes over. The change is written to the occupancy history.`
+              : `${person?.fullName ?? 'The resident'} becomes the ${role} of ${property.unitNumber}. The change is written to the occupancy history.`
+          }
+          confirmLabel="Assign"
+          tone={current ? 'danger' : 'primary'}
+          onConfirm={assign}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Take the unit off the register.
+ *
+ * A soft delete the API refuses while anyone still holds the unit, so the
+ * button is disabled in that case with the reason beside it rather than letting
+ * the request fail. The reason typed here is what the audit record keeps.
+ */
+function RemovePropertyCard({
+  property,
+  onRemoved,
+}: {
+  property: Property;
+  onRemoved: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const occupied = property.occupants.length > 0;
+
+  async function remove() {
+    setError(null);
+    try {
+      await api.delete(
+        `/properties/${property.id}?${new URLSearchParams({ reason: reason.trim() }).toString()}`,
+        { idempotencyKey: crypto.randomUUID() },
+      );
+      onRemoved();
+    } catch (caught) {
+      setError(
+        caught instanceof ApiRequestError ? caught.message : 'The property was not removed.',
+      );
+    }
+  }
+
+  return (
+    <Card className="border-danger/40">
+      <CardHeader>
+        <CardTitle className="text-danger flex items-center gap-2">
+          <Trash2 className="size-4" aria-hidden />
+          Remove from the register
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {occupied ? (
+          <p className="text-muted-foreground text-sm">
+            {property.unitNumber} still has {property.occupants.length} current{' '}
+            {property.occupants.length === 1 ? 'occupancy' : 'occupancies'}. End{' '}
+            {property.occupants.length === 1 ? 'it' : 'them'} before removing the property.
+          </p>
+        ) : (
+          <>
+            <Input
+              label="Reason"
+              required
+              minLength={3}
+              maxLength={500}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Demolished, merged with 12A, registered in error…"
+            />
+
+            {error && <Alert tone="danger">{error}</Alert>}
+
+            <ConfirmDialog
+              trigger={
+                <Button variant="danger" disabled={reason.trim().length < 3}>
+                  <Trash2 aria-hidden />
+                  Remove property
+                </Button>
+              }
+              title={`Remove ${property.unitNumber}?`}
+              description="The unit disappears from the register, billing and resident screens. Its occupancy history and audit trail are kept, but there is no way to restore it from the app."
+              confirmLabel="Remove"
+              tone="danger"
+              confirmPhrase={property.unitNumber}
+              onConfirm={remove}
+            />
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
