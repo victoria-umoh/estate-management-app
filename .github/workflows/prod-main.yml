@@ -131,7 +131,7 @@ jobs:
       # copy env
       - name: Copy environment files
         working-directory: ${{ env.APP_DIR }}
-        run: cp ../env.template .env
+        run: cp ../.env.template .env
 
       # Built here, against the server's real environment, rather than copied
       # from the check job: the config loader validates it at build time.
