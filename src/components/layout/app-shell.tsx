@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api/client';
+import { useProfile } from '@/lib/hooks/use-profile';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,8 +39,21 @@ export interface AppShellProps {
  * navigation, because leaving it open over the page someone just chose is the
  * most common mobile navigation annoyance.
  */
-export function AppShell({ children, permissions, user, badges = {} }: AppShellProps) {
+export function AppShell({
+  children,
+  permissions,
+  user: fallbackUser,
+  badges = {},
+}: AppShellProps) {
   const pathname = usePathname();
+  // The token carries no name, so the server can only draw placeholders. The
+  // profile fills them in; an operator with no estate membership keeps them.
+  const { profile } = useProfile();
+  const user = {
+    ...fallbackUser,
+    ...(profile?.fullName ? { name: profile.fullName } : {}),
+    ...(profile?.estateName ? { estateName: profile.estateName } : {}),
+  };
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const sections = visibleNavigation(new Set(permissions));

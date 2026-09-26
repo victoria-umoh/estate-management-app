@@ -1,6 +1,7 @@
 import { NotFoundError } from '@/core/errors';
 import { can } from '@/core/rbac';
 import type { RequestContext } from '@/core/tenancy';
+import { estateRepository } from '@/modules/estate';
 import { householdService } from '@/modules/household';
 import { membershipRepository } from '@/modules/membership/repository';
 import type { MembershipDoc } from '@/modules/membership/schema';
@@ -75,12 +76,14 @@ export class MeService {
     const user = await userRepository.findById(context.userId);
     if (!user) throw new NotFoundError('User');
 
-    const property = membership.propertyId
-      ? await propertyRepository.findById(context, membership.propertyId)
-      : null;
+    const [property, estate] = await Promise.all([
+      membership.propertyId ? propertyRepository.findById(context, membership.propertyId) : null,
+      estateRepository.findById(context.estateId),
+    ]);
 
     return {
       membershipId: membership._id.toHexString(),
+      estateName: estate?.name ?? null,
       residentCode: membership.residentCode ?? null,
       category: membership.category,
       status: membership.status,

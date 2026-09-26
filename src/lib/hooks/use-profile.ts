@@ -13,6 +13,7 @@ import { api } from '@/lib/api/client';
  */
 export interface Profile {
   membershipId: string;
+  estateName: string | null;
   residentCode: string | null;
   category: string;
   status: string;
