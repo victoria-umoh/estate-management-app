@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -157,6 +158,18 @@ export default function LoginPage() {
               {choices && !estateId ? 'Choose an estate' : 'Sign in'}
             </Button>
           </form>
+
+          <p className="mt-4 text-center text-sm">
+            <Link href="/forgot-password" className="text-primary font-medium hover:underline">
+              Forgot password?
+            </Link>
+          </p>
+          <p className="text-muted-foreground mt-2 text-center text-sm">
+            New resident?{' '}
+            <Link href="/register" className="text-primary font-medium hover:underline">
+              Register
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </main>

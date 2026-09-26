@@ -1,11 +1,12 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -132,6 +133,41 @@ export function AppShell({ children, permissions, user, badges = {} }: AppShellP
   );
 }
 
+/**
+ * Ends the session server-side as well as in the browser: the logout route
+ * revokes the refresh token, so a copied cookie cannot quietly mint new access.
+ * A full navigation, not a client push, so no cached authenticated view of the
+ * previous page survives.
+ */
+function SignOutButton() {
+  const [busy, setBusy] = useState(false);
+
+  async function signOut() {
+    setBusy(true);
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Logging out is not worth failing: the cookies are short-lived and the
+      // login page is where the user wants to be regardless.
+    }
+    window.location.assign('/login');
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      block
+      className="text-muted-foreground mt-1 justify-start"
+      disabled={busy}
+      onClick={() => void signOut()}
+    >
+      <LogOut aria-hidden />
+      {busy ? 'Signing out…' : 'Sign out'}
+    </Button>
+  );
+}
+
 function SidebarContent({
   sections,
   pathname,
@@ -200,7 +236,10 @@ function SidebarContent({
       </nav>
 
       <div className="border-border shrink-0 border-t p-3">
-        <div className="flex items-center gap-2.5 px-2 py-1.5">
+        <Link
+          href="/account"
+          className="hover:bg-accent flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-[120ms]"
+        >
           <div className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-full text-xs font-medium">
             {user.name.slice(0, 2).toUpperCase()}
           </div>
@@ -208,7 +247,8 @@ function SidebarContent({
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="text-muted-foreground truncate text-xs">{user.role}</p>
           </div>
-        </div>
+        </Link>
+        <SignOutButton />
       </div>
     </div>
   );

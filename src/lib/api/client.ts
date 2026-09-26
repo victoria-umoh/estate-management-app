@@ -80,6 +80,24 @@ async function request<T>(
   return (await requestWithMeta<T>(path, init)).data;
 }
 
+/**
+ * Whether a 401 is about the session rather than the request.
+ *
+ * Only a missing or stale access token is cured by refreshing. A wrong current
+ * password or a spent OTP is also a 401, and retrying it sends the same bad
+ * guess twice — burning two of the caller's rate-limited attempts and rotating
+ * the refresh token for nothing.
+ */
+const SESSION_FAILURES = new Set(['UNAUTHENTICATED', 'TOKEN_EXPIRED', 'TOKEN_INVALID']);
+
+async function isSessionFailure(response: Response): Promise<boolean> {
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: { code?: string } } | null;
+  return SESSION_FAILURES.has(body?.error?.code ?? 'UNAUTHENTICATED');
+}
+
 async function requestWithMeta<T>(
   path: string,
   init: RequestInit & { retryOnUnauthorised?: boolean } = {},
@@ -94,7 +112,7 @@ async function requestWithMeta<T>(
     },
   });
 
-  if (response.status === 401 && retryOnUnauthorised) {
+  if (response.status === 401 && retryOnUnauthorised && (await isSessionFailure(response))) {
     if (await refreshSession()) {
       return requestWithMeta<T>(path, { ...init, retryOnUnauthorised: false });
     }
@@ -153,6 +171,10 @@ export const api = {
 
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
+
+  // Replaces the whole resource — e.g. a resident's full role set.
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: JSON.stringify(body ?? {}) }),
 
   delete: <T>(path: string, options?: { idempotencyKey?: string }) =>
     request<T>(path, {
