@@ -32,6 +32,13 @@ const child = spawn('next', [...args, ...process.argv.slice(3)], {
   shell: process.platform === 'win32',
 });
 
+// Pass shutdown on to Next, so a process manager stopping this wrapper stops
+// the server too. Otherwise Next is orphaned still holding the port, and the
+// restart that follows dies on EADDRINUSE.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => child.kill(signal));
+}
+
 child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal);
   else process.exit(code ?? 0);

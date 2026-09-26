@@ -125,6 +125,25 @@ alongside the web process. Run the jobs on a scheduler:
 | `pnpm job:dunning` | daily | Moves lapsed estates through grace to suspension. |
 | `pnpm job:sla` | hourly | Escalates service requests past their SLA. |
 
+### Running it under PM2
+
+`ecosystem.config.cjs` runs the web server with automatic restart (exponential
+back-off, recycled above 1 GB) and each job above on its own cron schedule.
+
+```bash
+npm install -g pm2
+pnpm install --frozen-lockfile && pnpm build && pnpm db:indexes
+mkdir -p logs
+pm2 start ecosystem.config.cjs --env production
+pm2 save                 # remember this process list
+pm2 startup              # prints a sudo command — run it, so PM2 starts on boot
+```
+
+After each deploy: `git pull && pnpm install --frozen-lockfile && pnpm build &&
+pm2 reload ecosystem.config.cjs --env production`. `--env production` sets
+`NODE_ENV=production`, which switches on the production config checks: an HTTPS
+`APP_URL` and no `memory`, `inline`, `local` or `console` drivers.
+
 Behind a reverse proxy, forward `X-Forwarded-For` — rate limiting and the audit
 trail both record the client IP, and without it every request appears to come
 from the proxy.
