@@ -85,9 +85,13 @@ with 31 nav links and all bundles within budget, `pnpm smoke` all green with
 the new screens added, e2e 37/38 — `overstay.spec.ts` dropped its connection
 (ECONNRESET) twice and passed on the third run.
 
-**Next action:** decide the open questions below; then an incident detail page
-with comments, and a shared permissions context so pages stop decoding the
-access cookie themselves (finance, passes and platform do it today).
+**Since then:** residents have an incident detail page with its conversation;
+pages read the viewer's permissions through one helper (`src/lib/viewer.ts`)
+instead of each decoding the cookie; the sidebar shows the real name and estate
+instead of "Signed in" / "Estate"; gate refusals record the direction the
+officer has set, not always "in"; the account page links the phone/NIN checks.
+
+**Next action:** the open decisions below. Nothing else is queued.
 
 **Open decisions (need the owner):**
 - Should residents issue temporary passes? No resident role holds
@@ -95,10 +99,9 @@ access cookie themselves (finance, passes and platform do it today).
   so the form on `/my/visitors` currently shows "issued by the estate office".
 - Should phone/NIN checks happen *before* approval? Today they need a signed-in
   session and pending members cannot sign in, so they happen after
-  (`/register/identity`, not yet linked from the dashboard or approval email).
+  (`/register/identity`, linked from the account page but not the approval email).
 - `/api/v1/gate/verify` is dead — `/gate/scan` does the same check and logs it.
 - There is no way to invite a new estate's chairman from the platform console.
-- `recordManualDenial` always logs direction `in`.
 - CI has never started: every run is `startup_failure` with no jobs. The
   workflow file and self-hosted runner check out; the reason is only shown on
   the GitHub run page (likely an account billing lock).

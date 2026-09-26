@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Laptop, Lock, LogOut } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +96,16 @@ function ProfileCard() {
               value={profile.ninLast4 ? `•••••••${profile.ninLast4}` : 'Not provided'}
             />
           </dl>
+        )}
+        {profile && (
+          <p className="text-muted-foreground mt-4 text-sm">
+            {profile.identityProvided
+              ? 'Need to confirm your phone number again? '
+              : 'Your phone number and NIN are not confirmed yet. '}
+            <Link href="/register/identity" className="text-primary font-medium hover:underline">
+              Verify your identity
+            </Link>
+          </p>
         )}
       </CardContent>
     </Card>

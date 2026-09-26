@@ -5,6 +5,7 @@ import {
   Ambulance,
   Car,
   ChevronDown,
+  ChevronRight,
   Flame,
   MapPin,
   Phone,
@@ -15,6 +16,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -749,7 +751,14 @@ function Incidents() {
                   </button>
 
                   {open && (
-                    <div id={`incident-${incident.id}`} className="mt-2">
+                    <div id={`incident-${incident.id}`} className="mt-2 space-y-2">
+                      <Link
+                        href={`/my/safety/incidents/${incident.id}`}
+                        className="text-primary inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+                      >
+                        Details and conversation
+                        <ChevronRight className="size-4" aria-hidden />
+                      </Link>
                       <Attachments
                         subjectType="incident"
                         subjectId={incident.id}
