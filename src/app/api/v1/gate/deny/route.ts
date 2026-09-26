@@ -11,6 +11,7 @@ export const POST = defineRoute({
     label: z.string().trim().min(2).max(160),
     reason: z.string().trim().min(2).max(120),
     notes: z.string().trim().max(1000).optional(),
+    direction: z.enum(['in', 'out']).optional(),
   }),
   status: 200,
   handler: async (ctx, { body }) => {

@@ -41,11 +41,13 @@ export default function DenyEntryDialog({
   gateId,
   gateLabel,
   subject,
+  direction,
   onClose,
   onRecorded,
 }: {
   gateId: string;
   gateLabel: string;
+  direction: 'in' | 'out';
   /** Prefilled from the scan result when there is one. */
   subject: string;
   onClose: () => void;
@@ -69,6 +71,7 @@ export default function DenyEntryDialog({
         gateId,
         label: label.trim(),
         reason: reason.trim(),
+        direction,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
       toast.success(`Refusal recorded at ${gateLabel}.`);
@@ -87,10 +90,10 @@ export default function DenyEntryDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Deny entry</DialogTitle>
+          <DialogTitle>{direction === 'in' ? 'Deny entry' : 'Stop exit'}</DialogTitle>
           <DialogDescription>
-            Logs a refused entry at {gateLabel} under your name. It cannot be edited or removed
-            afterwards.
+            Logs a refused {direction === 'in' ? 'entry' : 'exit'} at {gateLabel} under your name.
+            It cannot be edited or removed afterwards.
           </DialogDescription>
         </DialogHeader>
 

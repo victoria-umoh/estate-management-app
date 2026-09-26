@@ -359,13 +359,21 @@ export class GateService {
   /** Record a denial the officer made on their own judgement. */
   async recordManualDenial(
     context: RequestContext,
-    input: { gateId: string; label: string; reason: string; notes?: string },
+    input: {
+      gateId: string;
+      label: string;
+      reason: string;
+      notes?: string;
+      /** Defaults to entry, the common case; an exit refusal is a held item or person. */
+      direction?: 'in' | 'out';
+    },
   ): Promise<void> {
     assertCan(context, PERMISSIONS.GATE_OPERATE);
+    const direction = input.direction ?? 'in';
 
     await movementService.record(context, {
       gateId: input.gateId,
-      direction: 'in',
+      direction,
       subject: 'visitor',
       subjectLabel: input.label,
       admitted: false,
@@ -375,7 +383,7 @@ export class GateService {
     });
 
     await auditService.record(context, {
-      action: 'gate.entry_denied',
+      action: direction === 'in' ? 'gate.entry_denied' : 'gate.exit_denied',
       resource: 'gate',
       resourceId: input.gateId,
       metadata: { label: input.label, reason: input.reason },

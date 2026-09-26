@@ -163,10 +163,9 @@ export default function GateScanPage() {
 
   const activeGate = gates.find((gate) => gate.id === gateId);
 
-  // The API records denials as entries only, so the action follows the
-  // direction switch rather than offering something it cannot log.
-  const canDeny =
-    direction === 'in' && Boolean(gateId) && (!outcome || outcome.admitted || !outcomeLogged);
+  // Recorded in whichever direction the switch is set to: an exit refusal is
+  // someone held at the gate on the way out.
+  const canDeny = Boolean(gateId) && (!outcome || outcome.admitted || !outcomeLogged);
 
   return (
     <div className="mx-auto max-w-lg space-y-4 pb-24">
@@ -325,7 +324,7 @@ export default function GateScanPage() {
               onClick={() => setDenying(true)}
             >
               <Ban aria-hidden />
-              Deny entry — no pass
+              {direction === 'in' ? 'Deny entry — no pass' : 'Stop exit'}
             </Button>
           )}
         </>
@@ -336,6 +335,7 @@ export default function GateScanPage() {
           gateId={activeGate.id}
           gateLabel={activeGate.code}
           subject={outcome?.credential?.display.primaryLabel ?? ''}
+          direction={direction}
           onClose={() => setDenying(false)}
           onRecorded={() => {
             setDenying(false);

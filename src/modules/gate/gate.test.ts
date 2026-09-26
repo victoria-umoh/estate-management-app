@@ -185,3 +185,31 @@ describe('deleting a gate', () => {
     expect(entry?.reason).toBe('Replaced by the service gate');
   });
 });
+
+describe('recording a refusal', () => {
+  it('records an entry refusal by default', async () => {
+    const gate = await makeGate();
+    await gateService.recordManualDenial(ctx([PERMISSIONS.GATE_OPERATE]), {
+      gateId: gate._id.toHexString(),
+      label: 'Unknown caller',
+      reason: 'No pass',
+    });
+
+    const movement = await MovementModel.findOne({ gateId: gate._id }).lean();
+    expect(movement).toMatchObject({ direction: 'in', admitted: false, denialReason: 'No pass' });
+  });
+
+  // Someone held on the way out must not be logged as an arrival.
+  it('records an exit refusal as an exit', async () => {
+    const gate = await makeGate();
+    await gateService.recordManualDenial(ctx([PERMISSIONS.GATE_OPERATE]), {
+      gateId: gate._id.toHexString(),
+      label: 'Delivery van',
+      reason: 'Items without an exit pass',
+      direction: 'out',
+    });
+
+    expect((await MovementModel.findOne({ gateId: gate._id }).lean())?.direction).toBe('out');
+    expect(await AuditLogModel.countDocuments({ action: 'gate.exit_denied' })).toBe(1);
+  });
+});
