@@ -128,7 +128,9 @@ alongside the web process. Run the jobs on a scheduler:
 ### Running it under PM2
 
 `ecosystem.config.cjs` runs the web server with automatic restart (exponential
-back-off, recycled above 1 GB) and each job above on its own cron schedule.
+back-off, recycled above 1 GB), the notification worker (`pnpm worker`, which
+sends queued email and SMS when `QUEUE_DRIVER=bullmq` and exits cleanly
+otherwise), and each job above on its own cron schedule.
 
 ```bash
 npm install -g pm2

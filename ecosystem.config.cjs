@@ -9,12 +9,13 @@
  * `.cjs` because package.json declares `"type": "module"`, and PM2 loads this
  * file with require().
  *
- * Two kinds of process live here:
+ * Three kinds of process live here:
  *
  *  - `estate-web`, the Next server. Restarted automatically whenever it exits,
  *    with an exponential back-off so a crash loop (a bad env var, the database
  *    unreachable) does not spin the CPU, and recycled if it outgrows its memory
  *    budget.
+ *  - `estate-worker`, which sends queued email and SMS (QUEUE_DRIVER=bullmq).
  *  - One entry per scheduled job. Each runs once and exits, so autorestart is
  *    OFF — PM2 would otherwise rerun a billing job the moment it finished — and
  *    `cron_restart` starts it again on schedule instead. PM2 also runs each one
@@ -98,10 +99,32 @@ module.exports = {
       error_file: path.join(cwd, 'logs', 'web.err.log'),
     },
 
+    // Sends queued email and SMS. Exits at once, cleanly, unless
+    // QUEUE_DRIVER=bullmq — so it is stopped, not crash-looped, on a host
+    // running the inline queue.
+    {
+      ...shared,
+      name: 'estate-worker',
+      script: path.join(bin, 'tsx'),
+      args: '--import ./scripts/load-env.mjs scripts/worker.ts',
+      interpreter: 'none',
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      stop_exit_codes: [0],
+      exp_backoff_restart_delay: 100,
+      min_uptime: '30s',
+      max_memory_restart: '512M',
+      kill_timeout: 30000,
+      out_file: path.join(cwd, 'logs', 'worker.out.log'),
+      error_file: path.join(cwd, 'logs', 'worker.err.log'),
+    },
+
     job('overstay-sweep', '*/10 * * * *'),
     job('sla-sweep', '0 * * * *'),
     job('report-schedules', '*/15 * * * *'),
     job('billing-run', '0 6 * * *'),
     job('mark-overdue', '30 6 * * *'),
+    job('dunning', '0 7 * * *'),
   ],
 };
